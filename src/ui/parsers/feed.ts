@@ -7,7 +7,7 @@ import type {
 } from "../types";
 import { formatHumanReadableViews } from "../utils/format";
 import { isValidYouTubeVideoId } from "../utils/ids";
-import { asObject, asString } from "../utils/json";
+import { asArray, asObject, asString } from "../utils/json";
 import { extractText, extractThumbnailUrl } from "../utils/text";
 import {
     buildFallbackThumbnailUrl,
@@ -29,6 +29,7 @@ function rejectWithReason(
 }
 
 function parseFeedVideoFromRenderer(renderer: JsonObject, diagnostics: FeedParseDiagnostics): FeedVideoItem | null {
+    const lockupMetadata = asObject(asObject(renderer.metadata)?.lockupMetadataViewModel);
     const contentType = asString(renderer.contentType).trim();
     if (contentType && !/VIDEO/i.test(contentType)) {
         return rejectWithReason(diagnostics, "content_type_filtered");
@@ -49,7 +50,8 @@ function parseFeedVideoFromRenderer(renderer: JsonObject, diagnostics: FeedParse
     const title = extractText(renderer.title).trim()
         || extractText(renderer.headline).trim()
         || extractText(renderer.videoTitle).trim()
-        || extractText(tileMetadataRenderer?.title).trim();
+        || extractText(tileMetadataRenderer?.title).trim()
+        || extractText(lockupMetadata?.title).trim();
     const channelTitle = extractText(renderer.longBylineText).trim()
         || extractText(renderer.shortBylineText).trim()
         || extractText(renderer.ownerText).trim()
@@ -60,7 +62,8 @@ function parseFeedVideoFromRenderer(renderer: JsonObject, diagnostics: FeedParse
     const thumbnailSourceUrl = extractThumbnailUrl(renderer.thumbnail)
         || extractThumbnailUrl(renderer.avatar)
         || extractThumbnailUrl(asObject(renderer.thumbnailRenderer)?.thumbnail)
-        || extractThumbnailUrl(tileHeaderRenderer?.thumbnail);
+        || extractThumbnailUrl(tileHeaderRenderer?.thumbnail)
+        || extractThumbnailUrl(asObject(asObject(renderer.contentImage)?.thumbnailViewModel)?.image);
     const thumbnailUrl = thumbnailSourceUrl || (videoId ? buildFallbackThumbnailUrl(videoId) : "");
     const rawViewCountText = extractText(renderer.shortViewCountText).trim() || extractText(renderer.viewCountText).trim();
     const viewCountText = formatHumanReadableViews(rawViewCountText || tileStatsLine);
@@ -123,6 +126,12 @@ function parseFeedVideoFromRenderer(renderer: JsonObject, diagnostics: FeedParse
         return rejectWithReason(diagnostics, "thumbnail_untrusted");
     }
 
+    const overlayDuration = asArray(renderer.thumbnailOverlays)
+        .map((overlay) => extractText(asObject(asObject(overlay)?.thumbnailOverlayTimeStatusRenderer)?.text))
+        .find((text) => /^\d+(?::\d{2}){1,2}$/.test(text));
+    const durationLabel = extractText(renderer.lengthText) || overlayDuration
+        || extractText(asObject(tileHeaderRenderer?.thumbnailOverlayTimeStatusRenderer)?.text);
+
     return {
         videoId,
         title,
@@ -130,6 +139,7 @@ function parseFeedVideoFromRenderer(renderer: JsonObject, diagnostics: FeedParse
         channelTitle,
         thumbnailUrl,
         viewCountText: viewCountText || undefined,
+        durationLabel: durationLabel || undefined,
         parseConfidenceLevel
     };
 }
@@ -139,30 +149,32 @@ function collectFeedVideoRenderers(
     videos: FeedVideoItem[],
     diagnostics: FeedParseDiagnostics
 ): void {
-    const objectNode = asObject(node);
-    if (!objectNode) {
-        return;
-    }
-
-    diagnostics.totalVisitedNodes += 1;
-
-    const parsedSelf = parseFeedVideoFromRenderer(objectNode, diagnostics);
-    if (parsedSelf) {
-        videos.push(parsedSelf);
-    }
-
-    Object.values(objectNode).forEach((value) => {
-        if (Array.isArray(value)) {
-            value.forEach((entry) => {
-                collectFeedVideoRenderers(entry, videos, diagnostics);
-            });
-            return;
+    // Walk iteratively: large/deep browse payloads must not exhaust the JS stack.
+    // Only inspect video candidates; serializing every ancestor was quadratic.
+    const stack: unknown[] = [node];
+    while (stack.length > 0) {
+        const current = stack.pop();
+        if (Array.isArray(current)) {
+            for (let i = current.length - 1; i >= 0; i -= 1) stack.push(current[i]);
+            continue;
         }
-
-        if (value && typeof value === "object") {
-            collectFeedVideoRenderers(value, videos, diagnostics);
+        const objectNode = asObject(current);
+        if (!objectNode) continue;
+        diagnostics.totalVisitedNodes += 1;
+        const candidate = objectNode.videoId || objectNode.contentId
+            || asObject(objectNode.navigationEndpoint)?.watchEndpoint
+            || asObject(objectNode.onSelectCommand)?.watchEndpoint;
+        if (candidate) {
+            const parsed = parseFeedVideoFromRenderer(objectNode, diagnostics);
+            if (parsed) videos.push(parsed);
+            // Do not reinterpret a rejected card's nested endpoint as a video.
+            continue;
         }
-    });
+        const values = Object.values(objectNode);
+        for (let i = values.length - 1; i >= 0; i -= 1) {
+            if (values[i] && typeof values[i] === "object") stack.push(values[i]);
+        }
+    }
 }
 
 export function parseFeedItemsFromBrowseResponse(payload: unknown): FeedParseResult {

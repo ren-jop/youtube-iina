@@ -32,7 +32,7 @@ function selectBestCommand(commands: InnertubeCommand[], targetChannelId?: strin
         }
     }
 
-    return commands[0];
+    return undefined;
 }
 
 export function normalizeInnertubeApiPath(rawPath: string): string {
@@ -115,9 +115,14 @@ function collectChannelSubscriptionDetails(
         return;
     }
 
-    if (typeof objectNode.subscribed === "boolean") {
+    const nodeChannelId = asString(objectNode.channelId).trim();
+    const matchesChannel = !targetChannelId || nodeChannelId === targetChannelId;
+    if (typeof objectNode.subscribed === "boolean" && matchesChannel) {
         accumulator.subscribedFlags.push(objectNode.subscribed);
     }
+    // A recommendation's button must never supply state or commands for the
+    // channel the user is viewing.
+    if (nodeChannelId && targetChannelId && nodeChannelId !== targetChannelId) return;
 
     const subscribeCommand = parseInnertubeCommandFromEndpoint(
         objectNode.subscribeEndpoint,

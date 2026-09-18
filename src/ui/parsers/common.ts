@@ -150,9 +150,6 @@ export function isLikelyAdVideoRenderer(
     }
 
     const adSignalTexts = [
-        title,
-        channelTitle,
-        ...supplementalSignals,
         extractText(renderer.badgeText).trim(),
         extractText(renderer.adBadge).trim(),
         ...extractMetadataBadgeTexts(renderer.badges),
@@ -190,7 +187,11 @@ export function isLikelyShortOrLiveVideoRenderer(renderer: JsonObject): boolean 
         return true;
     }
 
-    const serializedRenderer = JSON.stringify(renderer);
+    // Only structural markers count: titles mentioning "shorts" are ordinary videos.
+    const serializedRenderer = JSON.stringify({
+        thumbnailOverlays: renderer.thumbnailOverlays,
+        badges: renderer.badges
+    });
     if (serializedRenderer) {
         if (SHORTS_ENDPOINT_PATH_MARKER_PATTERN.test(serializedRenderer)) {
             return true;
@@ -200,7 +201,7 @@ export function isLikelyShortOrLiveVideoRenderer(renderer: JsonObject): boolean 
             return true;
         }
 
-        if (SHORTS_ENDPOINT_SERIALIZED_MARKER_PATTERN.test(serializedRenderer)) {
+        if (/(reelWatchEndpoint|SHORTS|SHORT_FORM|LIVE_NOW)/.test(serializedRenderer)) {
             return true;
         }
     }

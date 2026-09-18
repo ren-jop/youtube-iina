@@ -5,12 +5,10 @@ import {
     FEED_ITEMS_PER_CHANNEL,
     FEED_TIMEOUT_MS,
     HOME_ITEMS_LIMIT,
-    HOME_PREFETCH_TARGET,
     LOGGED_IN_BROWSE_MAX_PAGES,
     RELATED_ITEMS_LIMIT,
     RELATED_PREFETCH_TARGET,
     SUBSCRIPTIONS_ITEMS_LIMIT,
-    SUBSCRIPTIONS_PREFETCH_TARGET,
     TV_CLIENT_NAME,
     TV_CLIENT_NAME_ID,
     TV_DEFAULT_CLIENT_VERSION,
@@ -79,31 +77,23 @@ function buildTvClientContext(config: TvInnertubeConfig): JsonObject {
 }
 
 function collectContinuationTokens(node: unknown, tokens: Set<string>): void {
-    const objectNode = asObject(node);
-    if (!objectNode) {
-        return;
-    }
-
-    const continuationCommand = asObject(objectNode.continuationCommand);
-    const continuation = asString(continuationCommand?.token).trim()
-        || asString(asObject(objectNode.nextContinuationData)?.continuation).trim()
-        || asString(asObject(asObject(objectNode.continuationEndpoint)?.continuationCommand)?.token).trim();
-    if (continuation) {
-        tokens.add(continuation);
-    }
-
-    Object.values(objectNode).forEach((value) => {
-        if (Array.isArray(value)) {
-            value.forEach((entry) => {
-                collectContinuationTokens(entry, tokens);
-            });
-            return;
+    const stack: unknown[] = [node];
+    while (stack.length) {
+        const current = stack.pop();
+        if (Array.isArray(current)) {
+            for (let i = current.length - 1; i >= 0; i -= 1) stack.push(current[i]);
+            continue;
         }
-
-        if (value && typeof value === "object") {
-            collectContinuationTokens(value, tokens);
+        const objectNode = asObject(current);
+        if (!objectNode) continue;
+        const continuation = asString(asObject(objectNode.continuationCommand)?.token).trim()
+            || asString(asObject(objectNode.nextContinuationData)?.continuation).trim();
+        if (continuation) tokens.add(continuation);
+        const values = Object.values(objectNode);
+        for (let i = values.length - 1; i >= 0; i -= 1) {
+            if (values[i] && typeof values[i] === "object") stack.push(values[i]);
         }
-    });
+    }
 }
 
 function extractFirstContinuationToken(payload: unknown): string {
@@ -285,7 +275,7 @@ export async function fetchLoggedInHomeFeed(dependencies: FetchLoggedInBrowseFee
             FEED_TIMEOUT_MS,
             dependencies
         ),
-        Math.max(HOME_PREFETCH_TARGET, HOME_ITEMS_LIMIT),
+        HOME_ITEMS_LIMIT,
         LOGGED_IN_BROWSE_MAX_PAGES
     );
     return {
@@ -302,7 +292,7 @@ export async function fetchLoggedInSubscriptionsFeed(dependencies: FetchLoggedIn
             FEED_TIMEOUT_MS,
             dependencies
         ),
-        Math.max(SUBSCRIPTIONS_PREFETCH_TARGET, SUBSCRIPTIONS_ITEMS_LIMIT),
+        SUBSCRIPTIONS_ITEMS_LIMIT,
         LOGGED_IN_BROWSE_MAX_PAGES
     );
     return {

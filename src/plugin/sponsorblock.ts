@@ -1,4 +1,4 @@
-import { createPlaybackMonitor, type PlaybackSnapshot } from "./playbackMonitor";
+import { createPlaybackMonitor, type PlaybackStatus, type PlaybackSnapshot } from "./playbackMonitor";
 
 const SPONSORBLOCK_API_BASE_URL = "https://sponsor.ajay.app";
 
@@ -140,12 +140,7 @@ interface SponsorBlockControllerDependencies {
     console: {
         error: (...args: unknown[]) => void;
     };
-    mpv: {
-        getString: (name: string) => string;
-        getNumber: (name: string) => number;
-        getFlag: (name: string) => boolean;
-        set: (name: string, value: number) => void;
-    };
+    core: { status: PlaybackStatus; seekTo: (seconds: number) => void };
     http: {
         get: (url: string, options?: unknown) => Promise<{
             statusCode: number;
@@ -362,13 +357,14 @@ export function createSponsorBlockController(dependencies: SponsorBlockControlle
 
         if (!overlayInitialized) {
             dependencies.overlay.onMessage(OVERLAY_MESSAGE_NAME, () => {
+                if (!isStarted || !sponsorBlockEnabled) return;
                 if (overlayAction === "rewind") {
                     const rewindSegment = rewindOverlayOffer?.segment;
                     if (!rewindSegment) {
                         return;
                     }
 
-                    dependencies.mpv.set("time-pos", Math.max(0, rewindSegment.startSeconds));
+                    dependencies.core.seekTo(Math.max(0, rewindSegment.startSeconds));
                     clearRewindOverlayOffer();
                     hideOverlay();
                     return;
@@ -379,7 +375,7 @@ export function createSponsorBlockController(dependencies: SponsorBlockControlle
                 }
 
                 const target = Math.max(0, activeAskSegment.endSeconds + 0.25);
-                dependencies.mpv.set("time-pos", target);
+                dependencies.core.seekTo(target);
                 hideOverlay();
             });
             overlayInitialized = true;
@@ -419,7 +415,7 @@ export function createSponsorBlockController(dependencies: SponsorBlockControlle
     };
 
     const fetchSegmentsForVideo = async (videoId: string): Promise<void> => {
-        if (!videoId || isFetchInFlight) {
+        if (!isStarted || !videoId || isFetchInFlight) {
             return;
         }
 
@@ -438,6 +434,8 @@ export function createSponsorBlockController(dependencies: SponsorBlockControlle
                 params: {},
                 data: ""
             });
+
+            if (!isStarted || currentVideoId !== videoId) return;
 
             if (response.statusCode === 404) {
                 if (currentVideoId === videoId) {
@@ -468,6 +466,7 @@ export function createSponsorBlockController(dependencies: SponsorBlockControlle
             lastFetchVideoId = videoId;
             nextFetchAttemptAt = 0;
         } catch (error) {
+            if (!isStarted || currentVideoId !== videoId) return;
             dependencies.console.error(
                 `YouTube: SponsorBlock fetch failed for ${videoId}: ${error instanceof Error ? error.message : String(error)}`
             );
@@ -493,7 +492,7 @@ export function createSponsorBlockController(dependencies: SponsorBlockControlle
 
         autoSkippedSegmentKeys.add(segmentKey);
         const target = Math.max(0, activeSegment.endSeconds + 0.25);
-        dependencies.mpv.set("time-pos", target);
+        dependencies.core.seekTo(target);
         return true;
     };
 
@@ -599,7 +598,12 @@ export function createSponsorBlockController(dependencies: SponsorBlockControlle
     };
 
     const monitor = createPlaybackMonitor({
-        mpv: dependencies.mpv,
+        core: dependencies.core,
+        shouldPoll: () => {
+            if (!isStarted) return false;
+            refreshSettings();
+            return sponsorBlockEnabled;
+        },
         intervalMs: 350,
         onVideoChange: handleVideoChange,
         onTick: handleTick

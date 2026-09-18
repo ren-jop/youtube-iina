@@ -6,15 +6,15 @@ import type {
     RequestSettingsSyncPayload
 } from "../shared/messages";
 
+import { normalizeHttpResponse } from "./httpResponse";
 import { MESSAGE_NAMES } from "../shared/messages";
 import { installPlaybackHookScaffolding } from "./hooks";
 import { handlePlayItem } from "./playback";
 import { createSponsorBlockController } from "./sponsorblock";
 
-const { console, event, sidebar, global, http, utils, mpv, overlay, preferences } = iina as any;
+const { console, event, sidebar, global, http, utils, core, overlay, preferences } = iina as any;
 
 const SHOW_SIDEBAR_DELAY_MS = 300;
-const MAX_HTTP_RESPONSE_TEXT = 120000;
 const YOUTUBE_SPLASH_FILENAME = "YouTube.png";
 const UI_SETTINGS_SCHEMA_VERSION = 1;
 
@@ -29,13 +29,6 @@ function isSplashPath(pathValue: string): boolean {
     return pathValue.includes(YOUTUBE_SPLASH_FILENAME);
 }
 
-function shouldTruncateResponse(url: string, method: string): boolean {
-    if (method === "POST" && url.includes("/youtubei/")) {
-        return false;
-    }
-    return true;
-}
-
 function postSettingsSyncResponse(requestId: string): void {
     sidebar.postMessage(MESSAGE_NAMES.SettingsSync, {
         requestId,
@@ -46,7 +39,10 @@ function postSettingsSyncResponse(requestId: string): void {
 
 console.log("YouTube: Plugin loaded");
 
+let managedPlayerId: number | null = null;
 let windowReady = false;
+let windowClosed = false;
+let showTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingShowSidebar = false;
 let sidebarVisible = false;
 let sponsorBlockController: ReturnType<typeof createSponsorBlockController> | null = null;
@@ -61,23 +57,28 @@ function getSidebarVisibility(): boolean {
 }
 
 function showSidebarWithNotification(): void {
+    if (windowClosed) return;
     sidebar.show();
     sidebarVisible = true;
-    global.postMessage("sidebarShown", {});
+
 }
 
 function showSidebarWithDelay(): void {
-    setTimeout(() => {
+    if (showTimer !== null) clearTimeout(showTimer);
+    showTimer = setTimeout(() => {
+        showTimer = null;
         showSidebarWithNotification();
     }, SHOW_SIDEBAR_DELAY_MS);
 }
 
 function hideSidebar(): void {
+    if (windowClosed) return;
     sidebar.hide();
     sidebarVisible = false;
 }
 
 function toggleSidebarFromHotkey(): void {
+    if (windowClosed) return;
     if (!windowReady) {
         pendingShowSidebar = true;
         return;
@@ -92,33 +93,43 @@ function toggleSidebarFromHotkey(): void {
     showSidebarWithDelay();
 }
 
-global.onMessage("showYouTubeSidebar", () => {
+global.onMessage("showYouTubeSidebar", (data: { playerId?: number }) => {
+    const firstRequest = managedPlayerId === null;
+    if (typeof data?.playerId === "number") managedPlayerId = data.playerId;
+    if (firstRequest) {
+        if (windowReady) showSidebarWithDelay();
+        else pendingShowSidebar = true;
+        return;
+    }
     console.log("YouTube: Received showYouTubeSidebar message");
     toggleSidebarFromHotkey();
 });
 
 event.on("iina.window-loaded", () => {
+    if (windowReady) return;
     console.log("YouTube: Window loaded");
 
     sidebar.loadFile("ui/sidebar.html");
 
     sponsorBlockController = createSponsorBlockController({
         console,
-        mpv,
+        core,
         http,
         overlay,
         preferences
     });
-    sponsorBlockController.start();
 
     installPlaybackHookScaffolding({
         event,
-        mpv,
+        core,
         sidebar
     });
 
-    event.on("mpv.file-loaded", () => {
-        const path = String(mpv.getString("path") || "");
+    event.on("iina.file-loaded", () => {
+        windowClosed = false;
+        const path = String(core.status.url || "");
+        if (isSplashPath(path)) sponsorBlockController?.stop();
+        else sponsorBlockController?.start();
         if (!isSplashPath(path)) {
             return;
         }
@@ -127,14 +138,21 @@ event.on("iina.window-loaded", () => {
         showSidebarWithNotification();
     });
 
-    event.on("iina.window-will-close", () => {
+    event.on("mpv.end-file", () => {
         sponsorBlockController?.stop();
+    });
+
+    event.on("iina.window-will-close", () => {
+        windowClosed = true;
+        if (showTimer !== null) clearTimeout(showTimer);
+        sponsorBlockController?.stop();
+        if (managedPlayerId !== null) global.postMessage("playerClosed", { playerId: managedPlayerId });
     });
 
     sidebar.onMessage(MESSAGE_NAMES.PlayItem, (data: PlayItemPayload) => {
         console.log("YouTube: Received playItem");
 
-        if (!data) {
+        if (windowClosed || !data) {
             return;
         }
 
@@ -147,6 +165,7 @@ event.on("iina.window-loaded", () => {
     });
 
     sidebar.onMessage(MESSAGE_NAMES.OpenExternalUrl, (data: OpenExternalUrlPayload) => {
+        if (windowClosed) return;
         const url = String(data?.url || "").trim();
         if (!url) {
             return;
@@ -159,7 +178,7 @@ event.on("iina.window-loaded", () => {
     });
 
     sidebar.onMessage(MESSAGE_NAMES.HttpRequest, async (data: HttpRequestPayload) => {
-        if (!data || !data.id || !data.url) {
+        if (windowClosed || !data || !data.id || !data.url) {
             return;
         }
 
@@ -173,47 +192,22 @@ event.on("iina.window-loaded", () => {
             data: data.body ?? ""
         };
 
+        let result;
         try {
-            console.log("YouTube: HTTP request starting:", method, url);
-            let response;
-            if (method === "POST") {
-                response = await http.post(url, options);
-            } else {
-                response = await http.get(url, options);
-            }
-
-            console.log("YouTube: HTTP response:", response.statusCode, response.reason);
-
-            const responseText = typeof response.text === "string" ? response.text : "";
-            const shouldTruncate = shouldTruncateResponse(url, method);
-            const textWasTruncated = shouldTruncate && responseText.length > MAX_HTTP_RESPONSE_TEXT;
-            const safeText = textWasTruncated ? responseText.slice(0, MAX_HTTP_RESPONSE_TEXT) : responseText;
-            if (textWasTruncated) {
-                console.log(`YouTube: HTTP response text truncated from ${responseText.length} to ${safeText.length}`);
-            }
-
-            sidebar.postMessage(MESSAGE_NAMES.HttpResponse, {
-                id: requestId,
-                ok: response.statusCode >= 200 && response.statusCode < 300,
-                statusCode: response.statusCode,
-                reason: response.reason,
-                text: safeText
-            });
+            result = method === "POST"
+                ? await http.post(url, options)
+                : await http.get(url, options);
         } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            console.error(`YouTube: HTTP request failed: ${message}`);
-            console.error(`YouTube: HTTP request url: ${url}`);
-            sidebar.postMessage(MESSAGE_NAMES.HttpResponse, {
-                id: requestId,
-                ok: false,
-                statusCode: 0,
-                reason: "error",
-                error: message
-            });
+            result = error;
+        }
+        // A request may finish after the player window has been destroyed.
+        if (!windowClosed) {
+            sidebar.postMessage(MESSAGE_NAMES.HttpResponse, normalizeHttpResponse(requestId, result));
         }
     });
 
     sidebar.onMessage(MESSAGE_NAMES.ReportWatchStatusRequest, (data: ReportWatchStatusRequestPayload) => {
+        if (windowClosed) return;
         const requestId = String(data?.requestId || `watch-${Date.now()}`);
         if (!data?.videoId) {
             sidebar.postMessage(MESSAGE_NAMES.ReportWatchStatusResponse, {
@@ -233,12 +227,13 @@ event.on("iina.window-loaded", () => {
     });
 
     sidebar.onMessage(MESSAGE_NAMES.RequestSettingsSync, (data: RequestSettingsSyncPayload) => {
+        if (windowClosed) return;
         const requestId = String(data?.requestId || `settings-${Date.now()}`);
         postSettingsSyncResponse(requestId);
     });
 
     windowReady = true;
-    global.postMessage("playerReady", {});
+
 
     if (pendingShowSidebar) {
         console.log("YouTube: Showing sidebar (pending request)");

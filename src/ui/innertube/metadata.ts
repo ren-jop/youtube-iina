@@ -1,6 +1,5 @@
 import {
     HTTP_TIMEOUT_MS,
-    META_FETCH_CONCURRENCY,
     VIDEO_META_CACHE_TTL_MS,
     VIDEO_META_SCHEMA_VERSION
 } from "../constants";
@@ -129,51 +128,16 @@ export async function fetchVideoMetadata(
     }
 }
 
-async function enrichChunk(
-    chunk: FeedVideoItem[],
-    cacheByVideoId: VideoMetadataCacheMap
-): Promise<FetchVideoMetadataResult[]> {
-    return Promise.all(chunk.map((item) => fetchVideoMetadata(item.videoId, cacheByVideoId)));
-}
-
+// Browse cards already identify videos. Do not block the entire feed on one
+// anonymous /player request per card (which also cannot validate paid videos).
 export async function buildFinalFilteredFeedItems(
     items: FeedVideoItem[],
     limit: number,
     cacheByVideoId: VideoMetadataCacheMap,
-    persistCache: () => void
+    _persistCache: () => void
 ): Promise<FeedVideoItem[]> {
-    if (items.length === 0 || limit <= 0) {
-        return [];
-    }
-
-    const target = Math.min(limit, items.length);
-    const chunkSize = Math.min(Math.max(META_FETCH_CONCURRENCY, 1), items.length);
-    const finalItems: FeedVideoItem[] = [];
-    let didUpdateCache = false;
-
-    for (let index = 0; index < items.length && finalItems.length < target; index += chunkSize) {
-        const chunk = items.slice(index, index + chunkSize);
-        const chunkMetadata = await enrichChunk(chunk, cacheByVideoId);
-
-        for (let chunkIndex = 0; chunkIndex < chunk.length && finalItems.length < target; chunkIndex += 1) {
-            const metadata = chunkMetadata[chunkIndex];
-            if (metadata.didUpdateCache) {
-                didUpdateCache = true;
-            }
-
-            if (metadata.metadata?.isShortForm) {
-                continue;
-            }
-
-            finalItems.push({
-                ...chunk[chunkIndex]
-            });
-        }
-    }
-
-    if (didUpdateCache) {
-        persistCache();
-    }
-
-    return finalItems;
+    return items.filter((item) => {
+        const metadata = getVideoMetadataFromCache(cacheByVideoId, item.videoId);
+        return !(metadata && isVideoMetadataFresh(metadata) && metadata.isShortForm);
+    }).slice(0, Math.max(0, limit));
 }

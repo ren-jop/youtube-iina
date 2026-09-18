@@ -102,6 +102,7 @@ export interface FeedVideoItem {
     channelTitle: string;
     thumbnailUrl: string;
     viewCountText?: string;
+    durationLabel?: string;
     parseConfidenceLevel?: "high" | "medium" | "low";
 }
 
