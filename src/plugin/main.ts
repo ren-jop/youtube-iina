@@ -12,7 +12,7 @@ import { installPlaybackHookScaffolding } from "./hooks";
 import { handlePlayItem } from "./playback";
 import { createSponsorBlockController } from "./sponsorblock";
 
-const { console, event, sidebar, global, http, utils, mpv, overlay, preferences } = iina as any;
+const { console, event, sidebar, global, http, utils, core, overlay, preferences } = iina as any;
 
 const SHOW_SIDEBAR_DELAY_MS = 300;
 const YOUTUBE_SPLASH_FILENAME = "YouTube.png";
@@ -39,6 +39,7 @@ function postSettingsSyncResponse(requestId: string): void {
 
 console.log("YouTube: Plugin loaded");
 
+let managedPlayerId: number | null = null;
 let windowReady = false;
 let windowClosed = false;
 let showTimer: ReturnType<typeof setTimeout> | null = null;
@@ -59,7 +60,7 @@ function showSidebarWithNotification(): void {
     if (windowClosed) return;
     sidebar.show();
     sidebarVisible = true;
-    global.postMessage("sidebarShown", {});
+
 }
 
 function showSidebarWithDelay(): void {
@@ -71,11 +72,13 @@ function showSidebarWithDelay(): void {
 }
 
 function hideSidebar(): void {
+    if (windowClosed) return;
     sidebar.hide();
     sidebarVisible = false;
 }
 
 function toggleSidebarFromHotkey(): void {
+    if (windowClosed) return;
     if (!windowReady) {
         pendingShowSidebar = true;
         return;
@@ -90,7 +93,14 @@ function toggleSidebarFromHotkey(): void {
     showSidebarWithDelay();
 }
 
-global.onMessage("showYouTubeSidebar", () => {
+global.onMessage("showYouTubeSidebar", (data: { playerId?: number }) => {
+    const firstRequest = managedPlayerId === null;
+    if (typeof data?.playerId === "number") managedPlayerId = data.playerId;
+    if (firstRequest) {
+        if (windowReady) showSidebarWithDelay();
+        else pendingShowSidebar = true;
+        return;
+    }
     console.log("YouTube: Received showYouTubeSidebar message");
     toggleSidebarFromHotkey();
 });
@@ -103,21 +113,23 @@ event.on("iina.window-loaded", () => {
 
     sponsorBlockController = createSponsorBlockController({
         console,
-        mpv,
+        core,
         http,
         overlay,
         preferences
     });
-    sponsorBlockController.start();
 
     installPlaybackHookScaffolding({
         event,
-        mpv,
+        core,
         sidebar
     });
 
-    event.on("mpv.file-loaded", () => {
-        const path = String(mpv.getString("path") || "");
+    event.on("iina.file-loaded", () => {
+        windowClosed = false;
+        const path = String(core.status.url || "");
+        if (isSplashPath(path)) sponsorBlockController?.stop();
+        else sponsorBlockController?.start();
         if (!isSplashPath(path)) {
             return;
         }
@@ -126,17 +138,21 @@ event.on("iina.window-loaded", () => {
         showSidebarWithNotification();
     });
 
+    event.on("mpv.end-file", () => {
+        sponsorBlockController?.stop();
+    });
+
     event.on("iina.window-will-close", () => {
         windowClosed = true;
         if (showTimer !== null) clearTimeout(showTimer);
         sponsorBlockController?.stop();
-        global.postMessage("playerClosed", {});
+        if (managedPlayerId !== null) global.postMessage("playerClosed", { playerId: managedPlayerId });
     });
 
     sidebar.onMessage(MESSAGE_NAMES.PlayItem, (data: PlayItemPayload) => {
         console.log("YouTube: Received playItem");
 
-        if (!data) {
+        if (windowClosed || !data) {
             return;
         }
 
@@ -149,6 +165,7 @@ event.on("iina.window-loaded", () => {
     });
 
     sidebar.onMessage(MESSAGE_NAMES.OpenExternalUrl, (data: OpenExternalUrlPayload) => {
+        if (windowClosed) return;
         const url = String(data?.url || "").trim();
         if (!url) {
             return;
@@ -190,6 +207,7 @@ event.on("iina.window-loaded", () => {
     });
 
     sidebar.onMessage(MESSAGE_NAMES.ReportWatchStatusRequest, (data: ReportWatchStatusRequestPayload) => {
+        if (windowClosed) return;
         const requestId = String(data?.requestId || `watch-${Date.now()}`);
         if (!data?.videoId) {
             sidebar.postMessage(MESSAGE_NAMES.ReportWatchStatusResponse, {
@@ -209,12 +227,13 @@ event.on("iina.window-loaded", () => {
     });
 
     sidebar.onMessage(MESSAGE_NAMES.RequestSettingsSync, (data: RequestSettingsSyncPayload) => {
+        if (windowClosed) return;
         const requestId = String(data?.requestId || `settings-${Date.now()}`);
         postSettingsSyncResponse(requestId);
     });
 
     windowReady = true;
-    global.postMessage("playerReady", {});
+
 
     if (pendingShowSidebar) {
         console.log("YouTube: Showing sidebar (pending request)");

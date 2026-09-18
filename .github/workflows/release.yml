@@ -1,6 +1,11 @@
 name: Release
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - Info.json
+  workflow_dispatch:
   release:
     types: [published]
 
@@ -39,7 +44,24 @@ jobs:
           zip -r ../xyz.brbc.youtube.iinaplugin.iinaplgz .
         working-directory: xyz.brbc.youtube.iinaplugin
 
-      - name: Upload release asset
+      - name: Publish versioned release
+        if: github.event_name != 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          VERSION=$(node -p "require('./xyz.brbc.youtube.iinaplugin/Info.json').version")
+          TAG="v$VERSION"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; leaving its assets unchanged."
+            exit 0
+          fi
+          gh release create "$TAG" xyz.brbc.youtube.iinaplugin.iinaplgz \
+            --target "$GITHUB_SHA" --title "YouTube for IINA $VERSION" \
+            --notes-file RELEASE_NOTES.md --latest
+
+      - name: Attach manually published release asset
+        if: github.event_name == 'release'
         uses: softprops/action-gh-release@v2
         with:
           files: xyz.brbc.youtube.iinaplugin.iinaplgz

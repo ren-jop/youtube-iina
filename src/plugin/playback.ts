@@ -1,14 +1,8 @@
 import type { PlayItemPayload } from "../shared/messages";
 
-const { mpv } = iina as any;
-
 export function handlePlayItem(data: PlayItemPayload): boolean {
-    if (!data || !data.url || !data.videoId) {
-        return false;
-    }
-
-    const url = String(data.url);
-    mpv.command("loadfile", [url, "replace"]);
-
+    if (!data || typeof data.videoId !== "string" || !/^[A-Za-z0-9_-]{11}$/.test(data.videoId)) return false;
+    // Let IINA coordinate its own playback lifecycle and online-media hooks.
+    iina.core.open(`https://www.youtube.com/watch?v=${data.videoId}`);
     return true;
 }

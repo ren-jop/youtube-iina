@@ -3,78 +3,42 @@ const { menu, global, console } = iina;
 const YOUTUBE_SPLASH_URL =
     "~/Library/Application Support/com.colliderli.iina/plugins/xyz.brbc.youtube.iinaplugin/assets/YouTube.png";
 
-console.log("YouTube: Global entry loaded");
+// Use only numeric handles returned by createPlayerInstance. IINA's string-label
+// routing force-unwraps a player's plugin instance, which can be absent on unload.
+let activePlayerId: number | null = null;
+let creatingPlayer = false;
 
-let activePlayerId: number | string | null = null;
-let pendingShowSidebar = false;
-let pendingPlayerId: number | string | null = null;
-
-global.onMessage("playerReady", (data, playerId) => {
-    const resolvedPlayerId = playerId ?? null;
-    console.log("YouTube: Player registered:", resolvedPlayerId);
-    if (resolvedPlayerId === null) {
-        return;
-    }
-    activePlayerId = resolvedPlayerId;
-
-    if (pendingShowSidebar && pendingPlayerId !== null && String(pendingPlayerId) === String(resolvedPlayerId)) {
-        console.log("YouTube: Sending pending showSidebar to:", resolvedPlayerId);
-        global.postMessage(resolvedPlayerId, "showYouTubeSidebar", {});
-        pendingShowSidebar = false;
-        pendingPlayerId = null;
+global.onMessage("playerClosed", (data) => {
+    if (typeof data?.playerId === "number" && data.playerId === activePlayerId) {
+        activePlayerId = null;
     }
 });
 
-global.onMessage("playerClosed", (_data, playerId) => {
-    if (String(activePlayerId) === String(playerId)) activePlayerId = null;
-    if (String(pendingPlayerId) === String(playerId)) {
-        pendingPlayerId = null;
-        pendingShowSidebar = false;
-    }
-});
-
-global.onMessage("sidebarShown", (data, playerId) => {
-    console.log("YouTube: Sidebar shown in player:", playerId);
-});
-
-async function handleMenuAction(): Promise<void> {
-    console.log("YouTube: Menu item clicked, activePlayerId =", activePlayerId);
-
+function handleMenuAction(): void {
+    if (creatingPlayer) return;
     if (activePlayerId !== null) {
-        console.log("YouTube: Sending showSidebar to existing player:", activePlayerId);
-        global.postMessage(activePlayerId, "showYouTubeSidebar", {});
+        global.postMessage(activePlayerId, "showYouTubeSidebar", { playerId: activePlayerId });
         return;
     }
-
-    console.log("YouTube: No active player, creating with splash image");
-
-    const playerId = global.createPlayerInstance({
-        url: YOUTUBE_SPLASH_URL,
-        enablePlugins: true
-    });
-
-    console.log("YouTube: Created player instance:", playerId);
-
-    if (typeof playerId !== "number" && typeof playerId !== "string") {
-        throw new Error("IINA could not create the YouTube player.");
+    creatingPlayer = true;
+    try {
+        const playerId = global.createPlayerInstance({
+            url: YOUTUBE_SPLASH_URL,
+            enablePlugins: true
+        });
+        if (typeof playerId !== "number" || !Number.isFinite(playerId)) {
+            throw new Error("IINA could not create the YouTube player.");
+        }
+        activePlayerId = playerId;
+        global.postMessage(playerId, "showYouTubeSidebar", { playerId });
+    } finally {
+        creatingPlayer = false;
     }
-
-    activePlayerId = playerId;
-    pendingShowSidebar = true;
-    pendingPlayerId = playerId;
-
-    global.postMessage(playerId, "showYouTubeSidebar", {});
 }
 
-const menuItem = menu.item(
-    "YouTube",
-    () => {
-        handleMenuAction().catch((error) => {
-            console.error(`YouTube: Error in menu handler: ${error instanceof Error ? error.message : String(error)}`);
-        });
-    },
-    { keyBinding: "Shift+Y" }
-);
-
-menu.addItem(menuItem);
-console.log("YouTube: Menu item registered (Shift+Y)");
+menu.addItem(menu.item("YouTube", () => {
+    try { handleMenuAction(); }
+    catch (error) {
+        console.error(`YouTube: Could not open sidebar: ${error instanceof Error ? error.message : String(error)}`);
+    }
+}, { keyBinding: "Shift+Y" }));

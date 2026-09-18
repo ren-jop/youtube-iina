@@ -130,8 +130,7 @@ test('closing a player allows the menu to create a new one', async () => {
             postMessage(...args: any[]) { messages.push(args); }, createPlayerInstance() { return ++created; } }
     } });
     action!();
-    callbacks.playerReady({}, '1-xyz.brbc.youtube');
-    callbacks.playerClosed({}, '1-xyz.brbc.youtube');
+    callbacks.playerClosed({ playerId: 1 }, '1-xyz.brbc.youtube');
     action!();
     expect(created).toBe(2);
     expect(messages.every(m => m[0] !== null)).toBe(true);
@@ -158,7 +157,7 @@ test('main bridge preserves HTTP failures and suppresses replies after close', a
             sidebar: { loadFile: noop, show: noop, hide: noop, onMessage(name: string, fn: Function) { messages[name] = fn; }, postMessage(...args: any[]) { replies.push(args); } },
             global: { onMessage: noop, postMessage: noop },
             http: { get: () => request(), post: () => request() },
-            mpv: { getString: () => '', getNumber: () => undefined, getFlag: () => false },
+            core: { status: { url: '', idle: true }, open: noop, seekTo: noop },
             preferences: { get: () => false }, overlay: {}, utils: {}
         }
     });
@@ -206,4 +205,83 @@ test('subscription refresh retains results on failure and ignores signed-out res
     await pending;
     expect(state.subscriptionsState.items).toEqual([]);
     expect(state.subscriptionsState.isLoading).toBe(false);
+});
+
+test('lifecycle hooks never register native property observers or read status on end/close', async () => {
+    const { installPlaybackHookScaffolding } = await import('../src/plugin/hooks');
+    const events: Record<string, Function> = {};
+    const messages: any[] = [];
+    let reads = 0;
+    installPlaybackHookScaffolding({ event: { on(name, fn) { events[name] = fn; } },
+        core: { status: { get url() { reads++; return `https://www.youtube.com/watch?v=${videoId}`; } } },
+        sidebar: { postMessage(_name, payload) { messages.push(payload); } }
+    });
+    expect(Object.keys(events).some(name => name.endsWith('.changed'))).toBe(false);
+    events['iina.file-loaded']();
+    expect(messages[0].videoId).toBe(videoId);
+    events['mpv.end-file']();
+    events['iina.window-will-close']();
+    events['mpv.end-file']();
+    expect(reads).toBe(1);
+    expect(messages).toHaveLength(2);
+    events['iina.file-loaded'](); // Reused IINA window.
+    expect(messages).toHaveLength(3);
+});
+
+test('playback monitor does not read native state when disabled, stopped, or constructed', async () => {
+    const { createPlaybackMonitor } = await import('../src/plugin/playbackMonitor');
+    const originalSetInterval = globalThis.setInterval;
+    const originalClearInterval = globalThis.clearInterval;
+    let tick: Function;
+    let reads = 0;
+    let enabled = false;
+    const status = new Proxy({ url: `https://www.youtube.com/watch?v=${videoId}`, position: 10, duration: 60, paused: false, idle: false }, {
+        get(target, key) { reads++; return target[key]; }
+    });
+    try {
+        globalThis.setInterval = ((callback: Function) => { tick = callback; return 1; }) as any;
+        globalThis.clearInterval = (() => {}) as any;
+        const monitor = createPlaybackMonitor({ core: { status }, shouldPoll: () => enabled });
+        expect(reads).toBe(0);
+        monitor.start(); tick!();
+        expect(reads).toBe(0);
+        enabled = true; tick!();
+        expect(monitor.getLatestSnapshot().positionSeconds).toBe(10);
+        const activeReads = reads;
+        monitor.stop(); tick!();
+        expect(reads).toBe(activeReads);
+    } finally {
+        globalThis.setInterval = originalSetInterval;
+        globalThis.clearInterval = originalClearInterval;
+    }
+});
+
+test('video activation uses the IINA core playback API and validates IDs', async () => {
+    const { handlePlayItem } = await import('../src/plugin/playback');
+    const opened: string[] = [];
+    globalThis.iina = { core: { open(url: string) { opened.push(url); } } } as any;
+    expect(handlePlayItem({ videoId, url: 'https://example.com/untrusted' })).toBe(true);
+    expect(opened).toEqual([`https://www.youtube.com/watch?v=${videoId}`]);
+    expect(handlePlayItem({ videoId: 'invalid', url: 'https://example.com' })).toBe(false);
+    delete globalThis.iina;
+});
+
+test('global routing never switches to an unmanaged string player label', async () => {
+    const result = await Bun.build({ entrypoints: ['src/plugin/global.ts'], target: 'browser', format: 'iife' });
+    const callbacks: Record<string, Function> = {};
+    const messages: any[] = [];
+    let action: Function;
+    let created = 0;
+    runInNewContext(await result.outputs[0].text(), { iina: {
+        console: { log() {}, error() {} },
+        menu: { item(_name: string, handler: Function) { action = handler; }, addItem() {} },
+        global: { onMessage(name: string, handler: Function) { callbacks[name] = handler; },
+            postMessage(...args: any[]) { messages.push(args); }, createPlayerInstance() { return ++created; } }
+    } });
+    action!();
+    callbacks.playerClosed({ playerId: 100 }, 'some-other-player');
+    action!();
+    expect(created).toBe(1);
+    expect(messages.map(message => message[0])).toEqual([1, 1]);
+    expect(callbacks.playerReady).toBeUndefined();
 });
