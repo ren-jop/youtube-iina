@@ -177,7 +177,7 @@ export function resolveFeedItemPresentation(itemData: FeedVideoItem, metadata: V
     return {
         title: metadata?.title || itemData.title,
         thumbnailUrl: metadata?.thumbnailUrl || itemData.thumbnailUrl,
-        durationLabel: resolvedDurationSeconds > 0 ? formatDuration(resolvedDurationSeconds) : "",
+        durationLabel: resolvedDurationSeconds > 0 ? formatDuration(resolvedDurationSeconds) : (itemData.durationLabel || ""),
         channelLine: (metadata?.channelTitle || itemData.channelTitle || "").trim(),
         statsLine: buildFeedStatsLine(itemData, metadata)
     };

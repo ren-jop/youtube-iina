@@ -17,6 +17,7 @@ import {
 import type { AppMode, ViewName } from "../types";
 import {
     exchangeTvDeviceCode,
+    OAuthSlowDownError,
     getValidTvAccessToken as getValidTvAccessTokenOrRefresh,
     requestTvDeviceCode,
     resolveTvOAuthClientIdentity,
@@ -106,6 +107,12 @@ export function createAuthController(dependencies: AuthControllerDependencies): 
     };
 
     const setAppMode = async (mode: AppMode): Promise<void> => {
+        state.feedState.items = [];
+        state.feedState.isLoading = false;
+        state.feedRefreshSequence += 1;
+        state.subscriptionsRefreshSequence += 1;
+        state.subscriptionsState.items = [];
+        state.subscriptionsState.isLoading = false;
         state.appMode = mode;
         renderModeTabs();
         renderAuthUi();
@@ -150,7 +157,10 @@ export function createAuthController(dependencies: AuthControllerDependencies): 
             setAuthStatus("");
             renderAuthUi();
 
+            let pollDelayMs = Math.max(5, deviceCode.interval) * 1000;
+            let nextPollAt = Date.now() + pollDelayMs;
             state.authPollTimer = window.setInterval(async () => {
+                if (Date.now() < nextPollAt) return;
                 if (state.authSyncInProgress) {
                     return;
                 }
@@ -183,15 +193,20 @@ export function createAuthController(dependencies: AuthControllerDependencies): 
                     renderAuthUi();
                     await setAppMode("logged_in");
                 } catch (error) {
+                    if (error instanceof OAuthSlowDownError) {
+                        pollDelayMs += 5000;
+                        return;
+                    }
                     stopAuthPolling();
                     state.authPending = false;
                     state.authPanelState = null;
                     setAuthStatus(`Login failed: ${error instanceof Error ? error.message : String(error)}`);
                     renderAuthUi();
                 } finally {
+                    nextPollAt = Date.now() + pollDelayMs;
                     state.authSyncInProgress = false;
                 }
-            }, Math.max(1, deviceCode.interval) * 1000);
+            }, 1000);
         } catch (error) {
             state.authPending = false;
             state.authPanelState = null;
@@ -235,9 +250,9 @@ export function createAuthController(dependencies: AuthControllerDependencies): 
             setAuthStatus("");
             await setAppMode("logged_in");
         } catch {
-            clearTvAuthCache();
-            setAuthStatus("");
-            await setAppMode("anonymous");
+            // A temporary network failure must not destroy the refresh token.
+            setAuthStatus("Could not refresh sign-in. Retry refresh, or sign out and sign in again.");
+            await setAppMode("logged_in");
         }
 
         renderAuthUi();

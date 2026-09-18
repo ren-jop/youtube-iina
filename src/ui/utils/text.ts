@@ -17,7 +17,7 @@ export function extractText(value: unknown): string {
         return "";
     }
 
-    const simpleText = asString(objectValue.simpleText);
+    const simpleText = asString(objectValue.simpleText) || asString(objectValue.content);
     if (simpleText) {
         return simpleText;
     }
@@ -42,7 +42,7 @@ export function extractThumbnailUrl(value: unknown): string {
         return "";
     }
 
-    const thumbnails = asArray(objectValue.thumbnails);
+    const thumbnails = asArray(objectValue.thumbnails || objectValue.sources);
     for (let index = thumbnails.length - 1; index >= 0; index -= 1) {
         const thumbnail = asObject(thumbnails[index]);
         const rawUrl = thumbnail ? asString(thumbnail.url).trim() : "";

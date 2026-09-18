@@ -25,6 +25,14 @@ global.onMessage("playerReady", (data, playerId) => {
     }
 });
 
+global.onMessage("playerClosed", (_data, playerId) => {
+    if (String(activePlayerId) === String(playerId)) activePlayerId = null;
+    if (String(pendingPlayerId) === String(playerId)) {
+        pendingPlayerId = null;
+        pendingShowSidebar = false;
+    }
+});
+
 global.onMessage("sidebarShown", (data, playerId) => {
     console.log("YouTube: Sidebar shown in player:", playerId);
 });
@@ -47,11 +55,15 @@ async function handleMenuAction(): Promise<void> {
 
     console.log("YouTube: Created player instance:", playerId);
 
+    if (typeof playerId !== "number" && typeof playerId !== "string") {
+        throw new Error("IINA could not create the YouTube player.");
+    }
+
     activePlayerId = playerId;
     pendingShowSidebar = true;
     pendingPlayerId = playerId;
 
-    global.postMessage(null, "showYouTubeSidebar", {});
+    global.postMessage(playerId, "showYouTubeSidebar", {});
 }
 
 const menuItem = menu.item(

@@ -43,6 +43,7 @@ export function createSubscriptionsController(dependencies: SubscriptionsControl
     };
 
     const refreshSubscriptions = async (): Promise<void> => {
+        if (state.subscriptionsState.isLoading) return;
         const refreshId = ++state.subscriptionsRefreshSequence;
 
         if (state.appMode !== "logged_in") {
@@ -57,7 +58,6 @@ export function createSubscriptionsController(dependencies: SubscriptionsControl
         state.subscriptionsState.isLoading = true;
         state.subscriptionsState.warning = "";
         state.subscriptionsState.status = "";
-        state.subscriptionsState.items = [];
         renderSubscriptions();
 
         try {
@@ -68,7 +68,9 @@ export function createSubscriptionsController(dependencies: SubscriptionsControl
             }
 
             state.subscriptionsState.isLoading = false;
-            state.subscriptionsState.items = items;
+            if (!subscriptionsResult.failureReason || items.length > 0) {
+                state.subscriptionsState.items = items;
+            }
             if (subscriptionsResult.failureReason) {
                 const statusCodeSuffix = Number.isFinite(subscriptionsResult.statusCode)
                     ? ` (HTTP ${subscriptionsResult.statusCode})`
@@ -87,7 +89,6 @@ export function createSubscriptionsController(dependencies: SubscriptionsControl
             }
 
             state.subscriptionsState.isLoading = false;
-            state.subscriptionsState.items = [];
             state.subscriptionsState.warning = "";
             state.subscriptionsState.status = `Could not load subscriptions: ${error instanceof Error ? error.message : String(error)}`;
             renderSubscriptions();

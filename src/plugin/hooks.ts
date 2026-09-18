@@ -180,28 +180,34 @@ function postPositionEvent(sidebar: PlaybackHookDependencies["sidebar"], mpv: Pl
 
 export function installPlaybackHookScaffolding(dependencies: PlaybackHookDependencies): void {
     let lastPositionEventAt = 0;
+    let closed = false;
 
     dependencies.event.on("mpv.file-loaded", () => {
+        if (closed) return;
         postLifecycleEvent(dependencies.sidebar, dependencies.mpv, "file-loaded");
         postPositionEvent(dependencies.sidebar, dependencies.mpv);
     });
 
     dependencies.event.on("iina.file-started", () => {
+        if (closed) return;
         postLifecycleEvent(dependencies.sidebar, dependencies.mpv, "play");
     });
 
     dependencies.event.on("mpv.pause.changed", () => {
+        if (closed) return;
         const paused = getPausedState(dependencies.mpv) === true;
         postLifecycleEvent(dependencies.sidebar, dependencies.mpv, paused ? "pause" : "resume");
         postPositionEvent(dependencies.sidebar, dependencies.mpv);
     });
 
     dependencies.event.on("mpv.end-file", () => {
+        if (closed) return;
         postLifecycleEvent(dependencies.sidebar, dependencies.mpv, "ended");
         postPositionEvent(dependencies.sidebar, dependencies.mpv);
     });
 
     dependencies.event.on("mpv.time-pos.changed", () => {
+        if (closed) return;
         const now = Date.now();
         if (now - lastPositionEventAt < POSITION_EVENT_INTERVAL_MS) {
             return;
@@ -212,6 +218,7 @@ export function installPlaybackHookScaffolding(dependencies: PlaybackHookDepende
     });
 
     dependencies.event.on("iina.window-will-close", () => {
-        postLifecycleEvent(dependencies.sidebar, dependencies.mpv, "stopped");
+        if (closed) return;
+        closed = true;
     });
 }

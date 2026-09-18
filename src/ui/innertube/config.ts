@@ -9,9 +9,9 @@ let innertubeConfigPromise: Promise<InnertubeConfig> | null = null;
 let tvInnertubeConfigPromise: Promise<TvInnertubeConfig> | null = null;
 
 function parseInnertubeConfig(homepageHtml: string): InnertubeConfig {
-    const apiKeyMatch = homepageHtml.match(/"INNERTUBE_API_KEY":"([^"]+)"/);
-    const clientVersionMatch = homepageHtml.match(/"INNERTUBE_CONTEXT_CLIENT_VERSION":"([^"]+)"/);
-    const visitorDataMatch = homepageHtml.match(/"VISITOR_DATA":"([^"]+)"/);
+    const apiKeyMatch = homepageHtml.match(/"INNERTUBE_API_KEY"\s*:\s*"([^"]+)"/);
+    const clientVersionMatch = homepageHtml.match(/"INNERTUBE_CONTEXT_CLIENT_VERSION"\s*:\s*"([^"]+)"/);
+    const visitorDataMatch = homepageHtml.match(/"VISITOR_DATA"\s*:\s*"([^"]+)"/);
 
     const apiKey = apiKeyMatch ? decodeEscapedText(apiKeyMatch[1]) : "";
     const clientVersion = clientVersionMatch ? decodeEscapedText(clientVersionMatch[1]) : "";

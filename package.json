@@ -8,7 +8,8 @@
     "build:ui": "bun build src/ui/sidebar.ts --outdir xyz.brbc.youtube.iinaplugin/ui/dist --target=browser --format=iife",
     "clean": "rm -rf xyz.brbc.youtube.iinaplugin/dist xyz.brbc.youtube.iinaplugin/ui/dist",
     "sync:root-info": "bun scripts/sync-root-info.js",
-    "verify:root-info": "bun scripts/verify-root-info.js"
+    "verify:root-info": "bun scripts/verify-root-info.js",
+    "test": "bun test"
   },
   "devDependencies": {
     "iina-plugin-definition": "^0.99.3",

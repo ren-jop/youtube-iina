@@ -14,6 +14,8 @@ import type {
 import { createPseudoUuid } from "../utils/ids";
 import { asObject, asString } from "../utils/json";
 
+export class OAuthSlowDownError extends Error {}
+
 let inFlightAccessTokenRefreshPromise: Promise<string> | null = null;
 
 function parseIsoTimestamp(value: string): number {
@@ -132,7 +134,7 @@ export async function exchangeTvDeviceCode(identity: TvOAuthClientIdentity, devi
         AUTH_REQUEST_TIMEOUT_MS
     );
 
-    if (!response.ok || !response.text) {
+    if (!response.text) {
         throw new Error(`Token exchange failed (${response.statusCode})`);
     }
 
@@ -143,8 +145,11 @@ export async function exchangeTvDeviceCode(identity: TvOAuthClientIdentity, devi
 
     const errorCode = asString(payload.error).trim();
     if (errorCode) {
-        if (errorCode === "authorization_pending" || errorCode === "slow_down") {
+        if (errorCode === "authorization_pending") {
             return null;
+        }
+        if (errorCode === "slow_down") {
+            throw new OAuthSlowDownError("Slow down login polling.");
         }
         if (errorCode === "expired_token") {
             throw new Error("Login code expired. Please login again.");
@@ -154,6 +159,8 @@ export async function exchangeTvDeviceCode(identity: TvOAuthClientIdentity, devi
         }
         throw new Error(`Token exchange error: ${errorCode}`);
     }
+
+    if (!response.ok) throw new Error(`Token exchange failed (${response.statusCode})`);
 
     const accessToken = asString(payload.access_token).trim();
     const refreshToken = asString(payload.refresh_token).trim();
