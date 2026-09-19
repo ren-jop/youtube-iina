@@ -1,3 +1,4 @@
+import { readLockupMetadata } from "./lockupMetadata";
 import type {
     FeedParseDiagnostics,
     FeedParseRejectReason,
@@ -30,6 +31,7 @@ function rejectWithReason(
 
 function parseFeedVideoFromRenderer(renderer: JsonObject, diagnostics: FeedParseDiagnostics): FeedVideoItem | null {
     const lockupMetadata = asObject(asObject(renderer.metadata)?.lockupMetadataViewModel);
+    const modernMetadata = readLockupMetadata(lockupMetadata);
     const contentType = asString(renderer.contentType).trim();
     if (contentType && !/VIDEO/i.test(contentType)) {
         return rejectWithReason(diagnostics, "content_type_filtered");
@@ -57,6 +59,7 @@ function parseFeedVideoFromRenderer(renderer: JsonObject, diagnostics: FeedParse
         || extractText(renderer.ownerText).trim()
         || extractText(renderer.subtitle).trim()
         || extractText(renderer.bylineText).trim()
+        || modernMetadata.channel
         || tileChannelLine
         || "Unknown channel";
     const thumbnailSourceUrl = extractThumbnailUrl(renderer.thumbnail)
@@ -66,10 +69,11 @@ function parseFeedVideoFromRenderer(renderer: JsonObject, diagnostics: FeedParse
         || extractThumbnailUrl(asObject(asObject(renderer.contentImage)?.thumbnailViewModel)?.image);
     const thumbnailUrl = thumbnailSourceUrl || (videoId ? buildFallbackThumbnailUrl(videoId) : "");
     const rawViewCountText = extractText(renderer.shortViewCountText).trim() || extractText(renderer.viewCountText).trim();
-    const viewCountText = formatHumanReadableViews(rawViewCountText || tileStatsLine);
+    const viewCountText = formatHumanReadableViews(rawViewCountText || modernMetadata.views || tileStatsLine);
     const publishedText = extractText(renderer.publishedTimeText).trim()
         || extractText(renderer.publishedText).trim()
         || extractText(renderer.metadataText).trim()
+        || modernMetadata.published
         || tileStatsLine;
 
     if (isLikelyAdVideoRenderer(renderer, title, channelTitle, [publishedText, rawViewCountText, ...tileLines])) {

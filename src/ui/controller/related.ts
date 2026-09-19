@@ -16,8 +16,7 @@ import {
 import { renderRelated as renderRelatedView } from "../render/related";
 import { state } from "../state";
 import type {
-    FeedVideoItem,
-    ViewName
+    FeedVideoItem
 } from "../types";
 
 interface RelatedControllerDependencies {
@@ -31,9 +30,6 @@ interface RelatedControllerDependencies {
         statsLine: string;
     };
     buildFinalFilteredFeedItems: (items: FeedVideoItem[], limit: number) => Promise<FeedVideoItem[]>;
-    getValidTvAccessToken: () => Promise<string>;
-    refreshTvAccessToken: () => Promise<string>;
-    setActiveView: (view: ViewName) => void;
     renderModeTabs: () => void;
 }
 
@@ -80,16 +76,7 @@ export function createRelatedController(dependencies: RelatedControllerDependenc
         renderRelated();
 
         try {
-            const relatedResult = await fetchRelatedFeed(
-                playbackVideoId,
-                state.appMode === "logged_in"
-                    ? {
-                        isTvAuthAvailable: () => Boolean(state.tvAuthCache),
-                        getValidTvAccessToken: dependencies.getValidTvAccessToken,
-                        refreshTvAccessToken: dependencies.refreshTvAccessToken
-                    }
-                    : undefined
-            );
+            const relatedResult = await fetchRelatedFeed(playbackVideoId);
 
             const withoutCurrentVideo = relatedResult.items.filter((item) => item.videoId !== playbackVideoId);
             const items = await dependencies.buildFinalFilteredFeedItems(withoutCurrentVideo, RELATED_ITEMS_LIMIT);
@@ -136,9 +123,12 @@ export function createRelatedController(dependencies: RelatedControllerDependenc
         }
 
         state.currentPlaybackVideoId = videoId;
+        ++state.relatedRefreshSequence;
+        state.relatedState.isLoading = false;
+        dependencies.updateActiveViewLoadingIndicators();
         dependencies.renderModeTabs();
-        dependencies.setActiveView("related");
-        void refreshRelated();
+        // Playback must not navigate or replace the list under the pointer.
+        // The Related tab explicitly refreshes for the current video.
     };
 
     return {

@@ -88,3 +88,11 @@ The startup PNG is now a dark welcome screen. The built-in image-generation prom
 Validation: 23 automated regression tests, TypeScript checks, manifest verification, and bundle compilation. Native Mac crash reproduction and live-account testing remain unverified. If the new release still crashes, share the IINA/macOS versions, the action that triggers it, and the crashed thread from the macOS crash report.
 
 Native API references: [mpv property event handling](https://github.com/iina/iina/blob/develop/iina/MPVController.swift), [guarded core status](https://github.com/iina/iina/blob/develop/iina/JavascriptAPICore.swift), and [player routing](https://github.com/iina/iina/blob/develop/iina/JavascriptAPIGlobal.swift).
+
+## 1.2.3 search/feed transport fix and diagnostics
+
+YouTube responses now cross the native message bridge as encoded envelopes. This avoids a failure in IINA's template-literal message delivery when HTML or JSON contains backticks or `${…}`. Previous tests bypassed this boundary; new tests reproduce it.
+
+To troubleshoot, expand **Diagnostics** at the bottom of the sidebar, reproduce the failed request, click **Select report**, and press Command+C. Share that report. It includes plugin version, request stages, timing, and HTTP status without tokens, search terms, or response content. Entries are bounded and kept only in memory. Native plugin logs also contain safe request categories and timing.
+
+This update passes 36 regression tests, TypeScript checks, manifest verification, and the production build. Native Mac and live-account testing remain unverified.

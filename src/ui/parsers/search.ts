@@ -1,3 +1,4 @@
+import { parseFeedItemsFromBrowseResponse } from "./feed";
 import type { JsonObject, SearchChannelResult, SearchVideoResult } from "../types";
 import { isValidYouTubeVideoId } from "../utils/ids";
 import { asObject, asString } from "../utils/json";
@@ -35,7 +36,7 @@ function parseChannelRenderer(renderer: JsonObject): SearchChannelResult | null 
 function parseVideoRenderer(renderer: JsonObject): SearchVideoResult | null {
     const videoId = asString(renderer.videoId).trim();
     const title = extractText(renderer.title).trim();
-    const channelTitle = extractText(renderer.longBylineText) || extractText(renderer.ownerText) || "Unknown channel";
+    const channelTitle = extractText(renderer.longBylineText) || extractText(renderer.shortBylineText) || extractText(renderer.ownerText) || "Unknown channel";
     const thumbnailUrl = extractThumbnailUrl(renderer.thumbnail)
         || buildFallbackThumbnailUrl(videoId);
     const publishedText = extractText(renderer.publishedTimeText).trim();
@@ -112,6 +113,10 @@ export function parseSearchResponse(payload: unknown): { channels: SearchChannel
             uniqueChannels.set(channel.channelId, channel);
         }
     });
+
+    for (const item of parseFeedItemsFromBrowseResponse(payload).items) {
+        videos.push({ videoId: item.videoId, title: item.title, channelTitle: item.channelTitle, thumbnailUrl: item.thumbnailUrl, publishedText: item.published });
+    }
 
     const uniqueVideos = new Map<string, SearchVideoResult>();
     videos.forEach((video) => {

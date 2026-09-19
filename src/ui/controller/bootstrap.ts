@@ -1,3 +1,4 @@
+import { initializeDiagnostics } from "../bridge/diagnostics";
 import { ensureHttpBridgeListener, setHttpBridgeApi } from "../bridge/httpBridge";
 import { UI_SETTINGS_SCHEMA_VERSION } from "../constants";
 import { favoritesEmptyState, favoritesList } from "../dom";
@@ -13,6 +14,7 @@ import { createSearchController, type SearchController } from "./search";
 import { createSubscriptionsController } from "./subscriptions";
 
 export function initializeSidebar(): void {
+    initializeDiagnostics();
     setHttpBridgeApi(state.iinaApi);
 
     const navigationController = createNavigationController();
@@ -98,14 +100,14 @@ export function initializeSidebar(): void {
         playFeedItem: feedController.playFeedItem,
         resolveFeedItemPresentation: feedController.resolveFeedItemPresentation,
         buildFinalFilteredFeedItems: feedController.buildFinalFilteredFeedItems,
-        getValidTvAccessToken: authController.getValidTvAccessToken,
-        refreshTvAccessToken: authController.refreshTvAccessToken,
-        setActiveView: navigationController.setActiveView,
         renderModeTabs: authController.renderModeTabs
     });
 
     const eventsController = createEventsController({
-        setActiveView: navigationController.setActiveView,
+        setActiveView: (view) => {
+            navigationController.setActiveView(view);
+            if (view === "related") void relatedController.refreshRelated();
+        },
         performSearch: searchController.performSearch,
         startTvLoginFlow: authController.startTvLoginFlow,
         logoutTvAuth: authController.logoutTvAuth,
