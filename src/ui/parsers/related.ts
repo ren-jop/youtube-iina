@@ -5,7 +5,8 @@ import { extractText } from "../utils/text";
 export function watchNextResults(payload: unknown): unknown[] {
     const contents = asObject(asObject(payload)?.contents);
     const twoColumn = asObject(contents?.twoColumnWatchNextResults);
-    return asArray(asObject(asObject(twoColumn?.secondaryResults)?.secondaryResults)?.results);
+    const secondary = asObject(twoColumn?.secondaryResults);
+    return asArray(asObject(secondary?.secondaryResults)?.results || secondary?.results);
 }
 
 export function relatedFilter(payload: unknown): { selected: boolean; token: string } | null {
@@ -35,6 +36,8 @@ export function relatedCards(payload: unknown, initial = false): unknown[] {
             const object = asObject(node);
             if (!object) continue;
             if (object.compactVideoRenderer || object.videoRenderer || object.lockupViewModel || object.continuationItemRenderer) results.push(node);
+            const rich = asObject(object.richItemRenderer);
+            if (rich?.content) append([rich.content]);
             const section = asObject(object.itemSectionRenderer);
             if (section && (!section.targetId || section.targetId === "watch-next-feed")) append(asArray(section.contents));
         }
@@ -69,6 +72,6 @@ export function filterByTopic<T extends { title: string }>(items: T[], title: st
     if(!source.size) return [];
     return items.filter(item=>{
         const shared=[...topicWords(item.title)].filter(word=>source.has(word));
-        return shared.length>=2 || shared.some(word=>word.length>=5);
+        return shared.length>=2 || shared.some(word=>word.length>=4);
     });
 }

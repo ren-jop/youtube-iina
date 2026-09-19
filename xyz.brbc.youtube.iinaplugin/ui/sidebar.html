@@ -5,6 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Sidebar</title>
         <link rel="stylesheet" href="sidebar.css">
+        <link rel="stylesheet" href="refined.css">
     </head>
     <body>
         <header class="yt-header">
@@ -14,7 +15,8 @@
                         <input
                             class="yt-search-input"
                             type="search"
-                            placeholder="Search"
+                            placeholder="Search YouTube"
+                            aria-label="Search YouTube"
                             autocomplete="off"
                             data-search-input
                         >
@@ -25,6 +27,7 @@
                         </button>
                     </div>
                     <div class="yt-header-actions">
+                        <button class="yt-icon-button" type="button" data-settings-open aria-label="Settings and data" title="Settings and data">⚙</button>
                         <button class="yt-icon-button yt-home-button" type="button" aria-label="Home" title="Home" data-home-refresh>
                             <svg class="yt-home-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
                                 <path d="M8 2.2L2 7.2v6.6h4.2V9.4h3.6v4.4H14V7.2L8 2.2z" fill="currentColor"></path>
@@ -45,16 +48,17 @@
                 </div>
             </form>
             <div class="yt-header-controls">
-                <nav class="yt-tabs">
+                <nav class="yt-tabs" aria-label="Browse">
                     <button class="yt-tab is-active" type="button" data-view="feed">Feed</button>
                     <button class="yt-tab" type="button" data-view="subscriptions" hidden>Subscriptions</button>
                     <button class="yt-tab" type="button" data-view="favorites">Channels</button>
                     <button class="yt-tab" type="button" data-view="related" title="Show related videos for the current video" hidden>Related</button>
+                    <button class="yt-tab" type="button" data-view="history">Recent</button>
                 </nav>
             </div>
             <p class="yt-auth-status" data-auth-status>Anonymous mode</p>
             <div class="yt-auth-panel" data-auth-panel hidden>
-                <p class="yt-auth-panel-title">Copy this code and follow the intructions in your browser to sign-in.</p>
+                <p class="yt-auth-panel-title">Copy this code and follow the instructions in your browser to sign-in.</p>
                 <div class="yt-auth-panel-actions">
                     <input class="yt-auth-panel-code" data-auth-code type="text" value="-" readonly aria-label="Login code">
                     <a class="yt-auth-panel-link" data-auth-url href="https://youtube.com/activate" target="_blank" rel="noopener noreferrer">
@@ -64,7 +68,11 @@
             </div>
         </header>
 
+        <div class="yt-player-bar" data-player-bar hidden aria-live="polite">
+            <span class="yt-player-dot" aria-hidden="true"></span><div><small data-player-status>Now playing</small><p data-player-title></p></div>
+        </div>
         <main class="yt-content">
+            <section class="yt-view" data-view="history"><p class="yt-empty" data-history-empty>Your recently played videos will appear here.</p><ul class="yt-list" data-history-list></ul></section>
             <section class="yt-view is-active yt-feed-home" data-view="feed">
                 <p class="yt-empty" data-feed-empty>No videos yet. Add channels to build your feed.</p>
                 <p class="yt-empty" data-feed-status hidden></p>
@@ -131,7 +139,7 @@
             </label>
             <label>Related videos
                 <select data-option="relatedMode">
-                    <option value="topic">YouTube Related, with title-topic fallback</option>
+                    <option value="topic">Related + topic search</option>
                     <option value="strict">YouTube Related filter only</option>
                 </select>
             </label>

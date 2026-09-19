@@ -1,3 +1,4 @@
+import { reconcileList } from "./reconcile";
 import type { SearchChannelResult, SearchState, SearchVideoResult, VideoMetadata } from "../types";
 import {
     createChannelMetaLine,
@@ -56,7 +57,7 @@ export function renderSearchResults(dependencies: SearchRenderDependencies): voi
     onUpdateLoadingIndicators();
 
     channelsList.replaceChildren();
-    videosList.replaceChildren();
+
 
     if (searchState.channels.length === 0) {
         setElementVisibility(channelsEmptyState, Boolean(searchState.query) && !searchState.isLoading);
@@ -108,13 +109,14 @@ export function renderSearchResults(dependencies: SearchRenderDependencies): voi
     }
 
     if (searchState.videos.length === 0) {
+        reconcileList(videosList, [], () => "", () => "", () => document.createElement("li"));
         setElementVisibility(videosEmptyState, Boolean(searchState.query) && !searchState.isLoading);
         setElementVisibility(videosList, false);
     } else {
         setElementVisibility(videosEmptyState, false);
         setElementVisibility(videosList, true);
 
-        searchState.videos.forEach((video) => {
+        reconcileList(videosList, searchState.videos, video => video.videoId, video => JSON.stringify([video, getVideoMetadataFromCache(video.videoId)]), (video) => {
             const metadata = getVideoMetadataFromCache(video.videoId);
             const presentation = resolveVideoPresentation(video, metadata);
 
@@ -128,7 +130,7 @@ export function renderSearchResults(dependencies: SearchRenderDependencies): voi
                     onPlayVideo(video);
                 }
             });
-            videosList.append(item);
+            return item;
         });
     }
 }

@@ -1,4 +1,4 @@
-export type ViewName = "feed" | "subscriptions" | "search" | "favorites" | "related";
+export type ViewName = "feed" | "subscriptions" | "search" | "favorites" | "related" | "history";
 export type AppMode = "anonymous" | "logged_in";
 
 export interface UiFeatureFlags {

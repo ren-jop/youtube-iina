@@ -1,3 +1,5 @@
+import { updatePlaybackStatus } from "./playerUi";
+import { renderHistory, initializePolish } from "./polish";
 import { initializeLibrary } from "./library";
 import { recordPlayedVideo } from "../storage/libraryData";
 import { recordDiagnostic } from "../bridge/diagnostics";
@@ -19,6 +21,7 @@ import { createSubscriptionsController } from "./subscriptions";
 export function initializeSidebar(): void {
     initializeDiagnostics();
     state.iinaApi?.onMessage("playbackSwitchStatus", payload => {
+        updatePlaybackStatus(payload.stage);
         recordDiagnostic(`Playback ${payload.stage}${Number.isFinite(payload.elapsedMs) ? ` in ${payload.elapsedMs}ms` : ""}`);
         if (payload.stage === "failed") {
             const status = document.querySelector<HTMLElement>("[data-library-status]");
@@ -132,6 +135,7 @@ export function initializeSidebar(): void {
                 const item = [...state.feedState.items, ...state.searchState.videos, ...state.relatedState.items, ...state.subscriptionsState.items].find(item => item.videoId === payload.videoId);
                 try { recordPlayedVideo({ videoId: payload.videoId, title: item?.title || "", channelTitle: item?.channelTitle || "" }); }
                 catch { recordDiagnostic("Could not save local viewing history"); }
+                renderHistory(feedController.playFeedItem);
             }
         },
         onSettingsSync: (payload) => {
@@ -161,7 +165,10 @@ export function initializeSidebar(): void {
         }
     });
 
+    initializePolish(navigationController.setActiveView);
+    renderHistory(feedController.playFeedItem);
     initializeLibrary(() => {
+        renderHistory(feedController.playFeedItem);
         renderFavorites();
         searchController?.renderSearchResults();
         void feedController.refreshFeed();

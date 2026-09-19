@@ -20,6 +20,7 @@ export interface NavigationController {
 }
 
 export function createNavigationController(): NavigationController {
+    const scrollPositions = new Map<ViewName, number>();
     const getActiveView = (): ViewName => {
         return state.activeView;
     };
@@ -54,17 +55,23 @@ export function createNavigationController(): NavigationController {
             normalizedViewName = "feed";
         }
 
+        const content = document.querySelector<HTMLElement>(".yt-content");
+        const changed = state.activeView !== normalizedViewName;
+        if (changed && content) scrollPositions.set(state.activeView, content.scrollTop);
         state.activeView = normalizedViewName;
 
         tabs.forEach((tab) => {
             const isActive = tab.dataset.view === normalizedViewName;
             tab.classList.toggle("is-active", isActive);
+            tab.setAttribute("aria-pressed", String(isActive));
         });
 
         views.forEach((view) => {
             const isActive = view.dataset.view === normalizedViewName;
             view.classList.toggle("is-active", isActive);
         });
+
+        if (changed && content) content.scrollTop = scrollPositions.get(normalizedViewName) || 0;
 
         if (normalizedViewName === "search" && searchInput) {
             searchInput.focus();

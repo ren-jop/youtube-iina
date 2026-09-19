@@ -1,3 +1,5 @@
+import { whenVisible } from "./visible";
+import { reconcileList } from "./reconcile";
 import { resolveChannelName } from "../innertube/channelNames";
 import type { FeedState, FeedVideoItem, ViewName } from "../types";
 import { normalizeChannelHandle } from "../utils/text";
@@ -218,10 +220,10 @@ export function createPlayableVideoListItem(dependencies: PlayableVideoListItemD
     channel.textContent = safeChannelLine;
     if (safeChannelLine === "Unknown channel" && dependencies.videoId) {
         channel.textContent = "Loading channel…";
-        void resolveChannelName(dependencies.videoId).then(name => {
+        whenVisible(channel, () => { void resolveChannelName(dependencies.videoId!).then(name => {
             if (name) dependencies.onChannelResolved?.(name);
             channel.textContent = name || "Channel unavailable";
-        });
+        }); });
     }
 
     const stats = document.createElement("p");
@@ -263,7 +265,6 @@ export function renderPlayableVideoList(dependencies: RenderPlayableVideoListDep
         return;
     }
 
-    list.replaceChildren();
     onUpdateLoadingIndicators();
 
     if (status) {
@@ -280,6 +281,7 @@ export function renderPlayableVideoList(dependencies: RenderPlayableVideoListDep
             return;
         }
 
+        reconcileList(list, [], () => "", () => "", () => document.createElement("li"));
         emptyState.textContent = state.status || defaultEmptyText;
         setElementVisibility(emptyState, true);
         setElementVisibility(list, false);
@@ -289,7 +291,7 @@ export function renderPlayableVideoList(dependencies: RenderPlayableVideoListDep
     setElementVisibility(emptyState, false);
     setElementVisibility(list, true);
 
-    state.items.forEach((itemData) => {
+    reconcileList(list, state.items, item => item.videoId, item => JSON.stringify(resolveItemPresentation(item)), (itemData) => {
         const presentation = resolveItemPresentation(itemData);
         const item = createPlayableVideoListItem({
             videoId: itemData.videoId,
@@ -301,6 +303,6 @@ export function renderPlayableVideoList(dependencies: RenderPlayableVideoListDep
                 onPlayItem(itemData);
             }
         });
-        list.append(item);
+        return item;
     });
 }

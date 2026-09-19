@@ -317,12 +317,12 @@ describe('integrated playback and related results', () => {
     test('does not fall back to random recommendations when the filter is absent or fails', async () => {
         const { fetchRelatedFeed } = await import('../src/ui/innertube/feedBrowse');
         respond = () => ({ statusCode: 200, text: JSON.stringify(next([video('Spicy food')])) });
-        const empty = await fetchRelatedFeed('source12345');
+        const empty = await fetchRelatedFeed('empty123456');
         expect(empty.items).toEqual([]);
         expect(empty.notice).toContain('No close title-topic matches');
         respond = request => request.body?.continuation ? { statusCode: 503, text: '{}' }
             : { statusCode: 200, text: JSON.stringify(next([chip('Related', 'related-page'), video('Spicy food')])) };
-        const result = await fetchRelatedFeed('source12345');
+        const result = await fetchRelatedFeed('failed12345');
         expect(result.items).toEqual([]);
         expect(result.statusCode).toBe(503);
     });
@@ -377,9 +377,9 @@ test('missing-filter fallback loads close topics from the current video title', 
         results: { results: { contents: [{ videoPrimaryInfoRenderer: { title: { simpleText: 'Understanding digital addiction' } } }] } },
         secondaryResults: { secondaryResults: { results: [video('10 Levels of Spicy Food'), relevant] } }
     } } }) });
-    const result = await fetchRelatedFeed('source12345');
+    const result = await fetchRelatedFeed('topic123456');
     expect(result.items.map(item => item.title)).toEqual(['How to quit digital addictions']);
-    expect(result.notice).toContain('Matched by title topic');
+    expect(result.notice).toContain('matched from recommendations and search');
 });
 
 test('channel attribution requests are deduplicated and cached independently of feed loading', async () => {
@@ -394,4 +394,22 @@ test('channel attribution requests are deduplicated and cached independently of 
     expect(result).toEqual(['A real creator','A real creator']);
     expect(await resolveChannelName('author12345')).toBe('A real creator');
     expect(calls).toBe(1);
+});
+
+test('Related recovers an empty selected chip through topic search and shares cached results', async () => {
+    const { fetchRelatedFeed } = await import('../src/ui/innertube/feedBrowse');
+    let calls = 0;
+    respond = request => {
+        calls++;
+        if (request.url.includes('/search')) return {statusCode:200,text:JSON.stringify({contents:[video('Learning Rust programming')]})};
+        return {statusCode:200,text:JSON.stringify({contents:{twoColumnWatchNextResults:{secondaryResults:{secondaryResults:{results:[
+            {relatedChipCloudRenderer:{content:{chipCloudRenderer:{chips:[{chipCloudChipRenderer:{text:{simpleText:'Related'},isSelected:true}}]}}}}
+        ]}}}}})};
+    };
+    const [first, second] = await Promise.all([fetchRelatedFeed('rustsource1','Rust programming'),fetchRelatedFeed('rustsource1','Rust programming')]);
+    expect(first.items[0]?.title).toBe('Learning Rust programming');
+    expect(second).toBe(first);
+    expect(calls).toBe(2);
+    await fetchRelatedFeed('rustsource1','Rust programming');
+    expect(calls).toBe(2);
 });

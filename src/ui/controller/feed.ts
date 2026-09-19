@@ -1,4 +1,4 @@
-import { getOptions } from "../storage/libraryData";
+import { requestPlayback } from "./playerUi";
 import { MESSAGE_NAMES } from "../../shared/messages";
 import {
     FEED_EMPTY_NO_FAVORITES_TEXT,
@@ -177,11 +177,7 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
             return;
         }
 
-        state.iinaApi.postMessage(MESSAGE_NAMES.PlayItem, {
-            quality: getOptions().playbackQuality,
-            videoId: item.videoId,
-            url: `https://www.youtube.com/watch?v=${item.videoId}`
-        });
+        requestPlayback(item);
     };
 
     const fetchLoggedInSubscriptionsFeed = async (): Promise<FeedFetchResult> => {
@@ -199,7 +195,6 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
             state.feedState.isLoading = true;
             state.feedState.warning = "";
             state.feedState.status = "";
-            state.feedState.items = [];
             renderFeed();
 
             try {
@@ -213,7 +208,7 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
                     return;
                 }
 
-                state.feedState.items = items;
+                if (items.length || !homeResult.failureReason) state.feedState.items = items;
                 state.feedState.isLoading = false;
                 state.feedState.warning = "";
                 if (homeResult.failureReason) {
@@ -231,7 +226,6 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
                 }
 
                 state.feedState.isLoading = false;
-                state.feedState.items = [];
                 state.feedState.warning = "";
                 state.feedState.status = `Could not load home recommendations: ${error instanceof Error ? error.message : String(error)}`;
                 renderFeed();
@@ -257,7 +251,6 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
         state.feedState.isLoading = true;
         state.feedState.warning = "";
         state.feedState.status = "";
-        state.feedState.items = [];
         renderFeed();
 
         let channelResults: ChannelFeedResult[] = [];
@@ -269,7 +262,6 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
             }
 
             state.feedState.isLoading = false;
-            state.feedState.items = [];
             state.feedState.status = "Could not load latest uploads.";
             state.feedState.warning = "";
             renderFeed();
@@ -291,7 +283,7 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
             return result.items.length === 0 && countRejectedByParser(result) > 0;
         }).length;
 
-        state.feedState.items = filteredItems;
+        if (filteredItems.length || !failedWithoutCacheCount) state.feedState.items = filteredItems;
         state.feedState.isLoading = false;
         if (filteredItems.length > 0) {
             state.feedState.status = "";

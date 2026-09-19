@@ -107,3 +107,12 @@ Video selection now inserts into the current player's playlist and uses `playlis
 History records the latest visit per video (up to 5,000) after file-loaded events, not watch progress, and starts with this version. JSON backups contain saved local channels, these settings and history. CSV exports use Channel Id, Channel Url and Channel Title columns. Imports accept the versioned plugin JSON or a subscriptions CSV, validate before writing, preview counts, merge without deleting existing channels, and optionally import settings. OAuth credentials and caches are excluded. Native folder/file choosers handle transfer; saved backups are verified and revealed in Finder. Keep a backup before uninstalling the plugin. Direct import of these files into Google is not provided.
 
 Mac checks: switch from search and feed while fullscreen, including rapid selections; verify new picture and sound belong to the same video, the sidebar remains visible, and no old video autoplays next. Export a backup, cancel an import, then import a backup and a subscriptions CSV; verify names and settings. Automated tests cannot validate the native display or file dialogs.
+
+
+## 1.2.6 sidebar refinement
+
+The dark sidebar keeps search/navigation fixed while lists scroll. Recent exposes locally recorded playback, the inline status follows video opening, `/` focuses search, and the gear opens Settings & data. Feed and Related refreshes preserve results while loading, unchanged cards retain DOM/image identity, errors keep usable previous results, and tabs remember their scroll positions. Author lookups are deferred until cards approach the viewport. Search no longer waits on subscription-state hydration to show videos.
+
+Related uses a bounded topic search when the explicit filter is missing or returns no cards, with a three-minute cache and shared in-flight requests. It does not fill with home recommendations. This is title matching, not a semantic guarantee; strict filter-only mode remains available.
+
+`node scripts/test-sidebar-browser.mjs` runs the interaction checks after a production build when Playwright and its Chromium browser are installed. `PLAYWRIGHT_MODULE` can point to an installed Playwright module, and `CHROMIUM_MODULE` optionally points to an installed @sparticuz/chromium module. Tests use a local HTTP server and simulated native/network messages, so they do not require account credentials or contact YouTube. Native IINA playback needs Mac testing separately.
