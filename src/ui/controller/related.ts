@@ -1,3 +1,4 @@
+import { selectedVideoTitle } from "./playerUi";
 import type { PlaybackLifecycleEventPayload } from "../../shared/messages";
 import {
     RELATED_EMPTY_TEXT,
@@ -57,13 +58,14 @@ export function createRelatedController(dependencies: RelatedControllerDependenc
     };
 
     const refreshRelated = async (): Promise<void> => {
+        if (state.relatedState.isLoading) return;
         const playbackVideoId = state.currentPlaybackVideoId.trim();
         const refreshId = ++state.relatedRefreshSequence;
-        const sourceTitle = [...state.feedState.items, ...state.searchState.videos, ...state.relatedState.items, ...state.subscriptionsState.items].find(item => item.videoId === playbackVideoId)?.title;
+        const sourceTitle = [...state.feedState.items, ...state.searchState.videos, ...state.relatedState.items, ...state.subscriptionsState.items].find(item => item.videoId === playbackVideoId)?.title || selectedVideoTitle(playbackVideoId);
 
         if (!playbackVideoId) {
-            state.relatedState.isLoading = false;
             state.relatedState.items = [];
+            state.relatedState.isLoading = false;
             state.relatedState.warning = "";
             state.relatedState.status = RELATED_IDLE_TEXT;
             renderRelated();
@@ -73,7 +75,6 @@ export function createRelatedController(dependencies: RelatedControllerDependenc
         state.relatedState.isLoading = true;
         state.relatedState.warning = "";
         state.relatedState.status = "";
-        state.relatedState.items = [];
         renderRelated();
 
         try {
@@ -86,7 +87,7 @@ export function createRelatedController(dependencies: RelatedControllerDependenc
             }
 
             state.relatedState.isLoading = false;
-            state.relatedState.items = items;
+            if (items.length || !relatedResult.failureReason) state.relatedState.items = items;
             state.relatedState.warning = relatedResult.notice || "";
             if (relatedResult.failureReason) {
                 const statusCodeSuffix = Number.isFinite(relatedResult.statusCode)
@@ -106,7 +107,6 @@ export function createRelatedController(dependencies: RelatedControllerDependenc
             }
 
             state.relatedState.isLoading = false;
-            state.relatedState.items = [];
             state.relatedState.warning = "";
             state.relatedState.status = `Could not load related videos: ${error instanceof Error ? error.message : String(error)}`;
             renderRelated();

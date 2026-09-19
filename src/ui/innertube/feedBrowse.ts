@@ -1,3 +1,4 @@
+import { parseSearchResponse } from "../parsers/search";
 import { getOptions } from "../storage/libraryData";
 import { currentVideoTitle, filterByTopic, relatedCards, relatedFilter } from "../parsers/related";
 import {
@@ -305,7 +306,7 @@ export async function fetchLoggedInSubscriptionsFeed(dependencies: FetchLoggedIn
     };
 }
 
-export async function fetchRelatedFeed(
+async function fetchRelatedFeedUncached(
     videoId: string, fallbackTitle = ""
 ): Promise<FeedFetchResult> {
     const normalizedVideoId = videoId.trim();
@@ -339,15 +340,36 @@ export async function fetchRelatedFeed(
     };
     const initial = await requestPage();
     if (!initial.payload) return { items: [], diagnostics: createEmptyFeedParseDiagnostics(), failureReason: initial.failureReason, statusCode: initial.statusCode };
+    const topicFallback = async (): Promise<FeedFetchResult> => {
+        const parsed = parseFeedItemsFromBrowseResponse(relatedCards(initial.payload, true));
+        let title = currentVideoTitle(initial.payload) || fallbackTitle;
+        if (!title) {
+            try {
+                const metadata = await sendHttpRequest({ method: "GET", url: `https://www.youtube.com/oembed?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${normalizedVideoId}`)}&format=json` }, 6000);
+                if (metadata.ok && metadata.text) title = String(JSON.parse(metadata.text).title || "");
+            } catch { /* A missing title remains an explicit empty state. */ }
+        }
+        const candidates = filterByTopic(parsed.items, title).filter(item => item.videoId !== normalizedVideoId);
+        if (candidates.length < 6 && title) {
+            try {
+                // Search for the playing video's subject rather than fill with a home feed.
+                const response = await sendHttpRequest({ method: "POST", url: buildInnertubeUrl("search", config.apiKey), headers: buildWebInnertubeHeaders(config),
+                    body: { context: { client: buildWebClientContext(config) }, query: title.slice(0, 160) } }, 8000);
+                if (response.ok && response.text) {
+                    const matches = parseSearchResponse(JSON.parse(response.text)).videos;
+                    candidates.push(...filterByTopic(matches, title).map(item => ({ ...item, published: item.publishedText })));
+                }
+            } catch { /* Keep already matched watch-next results on search failure. */ }
+        }
+        const items = dedupeFeedItems(candidates).filter(item => item.videoId !== normalizedVideoId).slice(0, RELATED_ITEMS_LIMIT);
+        return { items, diagnostics: parsed.diagnostics, notice: items.length
+            ? "Videos about this topic · matched from recommendations and search."
+            : "No close title-topic matches found. Try another video or switch Related mode in Settings & data." };
+        };
     const filter = relatedFilter(initial.payload);
     if (!filter || (!filter.selected && !filter.token)) {
         if (getOptions().relatedMode === "strict") return { items: [], diagnostics: createEmptyFeedParseDiagnostics(), failureReason: "related_unavailable" };
-        const parsed = parseFeedItemsFromBrowseResponse(relatedCards(initial.payload, true));
-        const title = currentVideoTitle(initial.payload) || fallbackTitle;
-        const items = filterByTopic(parsed.items, title).filter(item => item.videoId !== normalizedVideoId).slice(0, RELATED_ITEMS_LIMIT);
-        return { items, diagnostics: parsed.diagnostics, notice: items.length
-            ? "Matched by title topic because YouTube did not supply a Related filter."
-            : "No close title-topic matches found. Try another video or switch Related mode in Settings & data." };
+        return topicFallback();
     }
     const result = await collectFeedItemsFromBrowsePages(async continuation => {
         if (!continuation && filter.selected) return { payload: relatedCards(initial.payload, true) };
@@ -355,10 +377,30 @@ export async function fetchRelatedFeed(
         return page.payload ? { payload: relatedCards(page.payload) } : page;
     }, RELATED_PREFETCH_TARGET, LOGGED_IN_BROWSE_MAX_PAGES);
 
+    if (!result.items.length && !result.failureReason && getOptions().relatedMode !== "strict") return topicFallback();
     return {
         ...result,
         items: result.items.slice(0, RELATED_ITEMS_LIMIT)
     };
+}
+
+const relatedCache = new Map<string, { at: number; result: FeedFetchResult }>();
+const relatedPending = new Map<string, Promise<FeedFetchResult>>();
+export async function fetchRelatedFeed(videoId: string, title = ""): Promise<FeedFetchResult> {
+    const key = `${videoId}:${getOptions().relatedMode}:${title}`;
+    const cached = relatedCache.get(key);
+    if (cached && Date.now() - cached.at < 180000) return cached.result;
+    const pending = relatedPending.get(key);
+    if (pending) return pending;
+    const request = fetchRelatedFeedUncached(videoId, title).then(result => {
+        if (!result.failureReason && result.items.length) {
+            relatedCache.set(key, { at: Date.now(), result });
+            if (relatedCache.size > 10) relatedCache.delete(relatedCache.keys().next().value!);
+        }
+        return result;
+    }).finally(() => relatedPending.delete(key));
+    relatedPending.set(key, request);
+    return request;
 }
 
 export async function fetchChannelFeedFromInnertube(channelId: string): Promise<FeedFetchResult> {

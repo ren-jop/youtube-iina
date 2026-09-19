@@ -1,0 +1,77 @@
+// Run after bun run build. Set PLAYWRIGHT_MODULE and CHROMIUM_MODULE to installed modules.
+import { createServer } from 'node:http';
+import { readFile } from 'node:fs/promises';
+import { resolve, extname } from 'node:path';
+import assert from 'node:assert/strict';
+const { chromium: playwright } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const binary = process.env.CHROMIUM_MODULE ? (await import(process.env.CHROMIUM_MODULE)).default : null;
+const root=resolve('xyz.brbc.youtube.iinaplugin/ui');
+const server=createServer(async(req,res)=>{try{const path=resolve(root,'.'+req.url.split('?')[0]);if(!path.startsWith(root+'/'))throw Error();const data=await readFile(path);res.setHeader('Content-Type',({'.html':'text/html','.js':'text/javascript','.css':'text/css','.woff2':'font/woff2'})[extname(path)]||'application/octet-stream');res.end(data);}catch{res.statusCode=404;res.end();}});
+await new Promise(r=>server.listen(0,'127.0.0.1',r));
+const browser=await playwright.launch(binary?{executablePath:await binary.executablePath(),args:binary.args,headless:true}:{headless:true});
+try {
+ const page=await browser.newPage({viewport:{width:400,height:820}});
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.route('https://**/*',route=>route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><rect width="320" height="180" fill="#253447"/><circle cx="160" cy="90" r="42" fill="#455d78"/></svg>'}));
+ await page.addInitScript(()=>{
+  const handlers={};window.testRequests=[];window.testSlow=false;window.testFail=false;
+  const video=(id,title)=>({videoRenderer:{videoId:id,title:{simpleText:title},longBylineText:{simpleText:'Studio Notes'},navigationEndpoint:{watchEndpoint:{videoId:id}},thumbnail:{thumbnails:[{url:`https://i.ytimg.com/vi/${id}/hqdefault.jpg`}]}}});
+  const videos=Array.from({length:20},(_,i)=>video('video'+String(i).padStart(6,'0'),['Understanding digital addiction','The science of attention','Building a calmer digital life'][i%3]));
+  localStorage.setItem('yt-favorites-v1',JSON.stringify([{channelId:'UC'+'a'.repeat(22),title:'Studio Notes',thumbnailUrl:'',addedAt:new Date().toISOString()}]));
+  window.iina={onMessage:(name,fn)=>handlers[name]=fn,postMessage:(name,p)=>{
+    if(name==='requestSettingsSync')return;
+    if(name==='playItem'){handlers.playbackSwitchStatus?.({stage:'loading'});setTimeout(()=>{handlers.playbackSwitchStatus?.({stage:'loaded',elapsedMs:200});handlers.playbackLifecycleEvent?.({event:'file-loaded',videoId:p.videoId,path:p.url,observedAt:new Date().toISOString()});},200);return;}
+    if(name!=='httpRequest')return;
+    window.testRequests.push(p);
+    let text='{}';
+    if(p.method==='GET'&&p.url.includes('oembed'))text=JSON.stringify({title:'Understanding digital addiction',author_name:'Studio Notes'});
+    else if(p.method==='GET')text='"INNERTUBE_API_KEY":"test","INNERTUBE_CONTEXT_CLIENT_VERSION":"test"';
+    else if(p.url.includes('/next'))text=JSON.stringify({contents:{twoColumnWatchNextResults:{results:{results:{contents:[{videoPrimaryInfoRenderer:{title:{simpleText:'Understanding digital addiction'}}}]}},secondaryResults:{secondaryResults:{results:[]}}}}});
+    else if(p.url.includes('/search'))text=JSON.stringify({contents:[video('match000001','Digital addiction and attention'),video('match000002','How to quit digital addictions')]});
+    else text=JSON.stringify({contents:videos});
+    setTimeout(()=>handlers.httpResponse?.({encodedResponse:encodeURIComponent(JSON.stringify({id:p.id,ok:!window.testFail,statusCode:window.testFail?503:200,text})),id:encodeURIComponent(p.id)}),window.testSlow?600:30);
+  }};
+ });
+ await page.goto(`http://127.0.0.1:${server.address().port}/sidebar.html`);
+ await page.waitForSelector('[data-feed-favorites] .yt-item');
+ assert.equal(await page.locator('[data-feed-favorites] .yt-item').count(),5);
+ await page.evaluate(()=>{window.firstCard=document.querySelector('[data-feed-favorites] .yt-item');window.testSlow=true;});
+ await page.click('[data-home-refresh]');
+ assert.equal(await page.evaluate(()=>window.firstCard===document.querySelector('[data-feed-favorites] .yt-item')),true,'refresh must preserve card DOM');
+ await page.waitForTimeout(750);
+ assert.equal(await page.evaluate(()=>window.firstCard===document.querySelector('[data-feed-favorites] .yt-item')),true,'unchanged result must preserve decoded image and focus');
+ await page.evaluate(()=>{window.testSlow=false;window.testFail=true;});
+ await page.click('[data-home-refresh]');await page.waitForTimeout(300);
+ assert.equal(await page.evaluate(()=>window.firstCard===document.querySelector('[data-feed-favorites] .yt-item')),true,'network failure must retain previous feed');
+ await page.evaluate(()=>window.testFail=false);
+ await page.locator('[data-feed-favorites] .yt-item').first().click();
+ await page.waitForSelector('[data-player-status]:text("Now playing")');
+ assert.equal(await page.locator('.yt-tab.is-active').getAttribute('data-view'),'feed');
+ await page.click('.yt-tab[data-view="related"]');
+ await page.waitForSelector('[data-related-list] .yt-item');
+ assert.equal(await page.locator('[data-related-list] .yt-item').count(),2,'topic search should recover an empty watch-next response');
+ const count=await page.evaluate(()=>window.testRequests.length);
+ await page.click('.yt-tab[data-view="related"]');await page.waitForTimeout(150);
+ assert.equal(await page.evaluate(()=>window.testRequests.length),count,'Related cache avoids duplicate network requests');
+ await page.screenshot({path:process.env.SCREENSHOT_PATH || '/tmp/iina-refined.png'});
+ await page.click('.yt-tab[data-view="history"]');
+ assert.equal(await page.locator('[data-history-list] .yt-item').count(),1);
+ await page.locator('body').click({position:{x:2,y:2}});await page.keyboard.press('/');
+ assert.equal(await page.locator('[data-search-input]').evaluate(el=>el===document.activeElement),true);
+ await page.fill('[data-search-input]','digital addiction');await page.press('[data-search-input]','Enter');
+ await page.waitForSelector('[data-videos-list] .yt-item');
+ await page.evaluate(()=>{window.searchCard=document.querySelector('[data-videos-list] .yt-item');window.testFail=true;});
+ await page.fill('[data-search-input]','offline query');await page.press('[data-search-input]','Enter');await page.waitForTimeout(150);
+ assert.equal(await page.evaluate(()=>window.searchCard===document.querySelector('[data-videos-list] .yt-item')),true,'failed search must retain usable results');
+ assert.match(await page.locator('[data-search-status]').textContent(),/Showing previous results/);
+ await page.evaluate(()=>window.testFail=false);
+ await page.click('[data-settings-open]');
+ assert.equal(await page.locator('[data-library]').getAttribute('open'),'');
+ await page.check('[data-option="compactCards"]');
+ assert.equal(await page.locator('body').evaluate(el=>el.classList.contains('yt-compact')),true);
+ await page.click('[data-library] summary');
+ await page.setViewportSize({width:320,height:650});
+ assert.equal(await page.evaluate(()=>document.body.scrollWidth<=innerWidth),true,'narrow sidebar must not scroll horizontally');
+ assert.deepEqual(errors,[]);
+ console.log('Browser checks passed: initial feed, refresh DOM retention, playback state, Related search/cache, Recent, search keyboard shortcut, settings and narrow layout.');
+} finally {await browser.close();server.close();}

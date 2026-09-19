@@ -1,4 +1,4 @@
-import { getOptions } from "../storage/libraryData";
+import { requestPlayback } from "./playerUi";
 import { MESSAGE_NAMES } from "../../shared/messages";
 import {
     SEARCH_CHANNELS_LIMIT,
@@ -226,11 +226,7 @@ export function createSearchController(dependencies: SearchControllerDependencie
             return;
         }
 
-        state.iinaApi.postMessage(MESSAGE_NAMES.PlayItem, {
-            quality: getOptions().playbackQuality,
-            videoId: video.videoId,
-            url: `https://www.youtube.com/watch?v=${video.videoId}`
-        });
+        requestPlayback(video);
     };
 
     const openChannelWithIdentityInExternalBrowser = (channelId: string, channelHandle?: string): void => {
@@ -338,6 +334,7 @@ export function createSearchController(dependencies: SearchControllerDependencie
 
     const performSearch = async (query: string): Promise<void> => {
         const normalizedQuery = query.trim();
+        if (state.searchState.isLoading && state.searchState.query === normalizedQuery) return;
         const requestId = ++searchRequestSequence;
 
         if (!normalizedQuery) {
@@ -386,7 +383,7 @@ export function createSearchController(dependencies: SearchControllerDependencie
             const responseJson: unknown = JSON.parse(response.text);
             const parsed = parseSearchResponseFromParser(responseJson);
             const limitedChannels = parsed.channels.slice(0, SEARCH_CHANNELS_LIMIT);
-            const channelsWithSubscriptionState = await resolveSearchChannelsSubscriptionState(limitedChannels);
+            const channelsWithSubscriptionState = limitedChannels;
             const limitedVideos = parsed.videos.slice(0, SEARCH_VIDEOS_LIMIT);
             const finalizedVideos = await buildFinalSearchVideos(limitedVideos);
 
@@ -397,16 +394,19 @@ export function createSearchController(dependencies: SearchControllerDependencie
             state.searchState.channels = channelsWithSubscriptionState;
             state.searchState.videos = finalizedVideos;
             setSearchStatus("");
+            // Subscription state can take several requests. Show videos immediately.
+            if (state.appMode === "logged_in") void resolveSearchChannelsSubscriptionState(limitedChannels).then(channels => {
+                if (requestId !== searchRequestSequence || state.appMode !== "logged_in") return;
+                state.searchState.channels = channels;
+                renderSearchResults();
+            });
         } catch (error) {
             if (requestId !== searchRequestSequence) {
                 return;
             }
 
-            state.searchState.channels = [];
-            state.searchState.videos = [];
-
             const message = error instanceof Error ? error.message : String(error);
-            setSearchStatus(`Search failed: ${message}`);
+            setSearchStatus(`Search failed: ${message}${state.searchState.videos.length ? " · Showing previous results." : ""}`);
         } finally {
             if (requestId !== searchRequestSequence) {
                 return;
@@ -418,6 +418,7 @@ export function createSearchController(dependencies: SearchControllerDependencie
     };
 
     const goHomeAndRefresh = async (): Promise<void> => {
+        ++searchRequestSequence;
         dependencies.setActiveView("feed");
 
         if (searchInput) {
@@ -430,6 +431,7 @@ export function createSearchController(dependencies: SearchControllerDependencie
         setSearchStatus(SEARCH_IDLE_STATUS_TEXT);
         renderSearchResults();
 
+        if (state.feedState.isLoading) return;
         if (state.appMode === "logged_in") {
             await Promise.all([dependencies.refreshFeed(), dependencies.refreshSubscriptions()]);
             return;
