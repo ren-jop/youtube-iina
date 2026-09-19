@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { runInNewContext } from 'node:vm';
+import { decodeHttpResponse } from '../src/shared/httpTransport';
 import { normalizeHttpResponse } from '../src/plugin/httpResponse';
 import { parseFeedItemsFromBrowseResponse } from '../src/ui/parsers/feed';
 import { parseChannelSubscriptionDetails } from '../src/ui/parsers/subscription';
@@ -164,13 +165,13 @@ test('main bridge preserves HTTP failures and suppresses replies after close', a
     events['iina.window-loaded'].forEach(fn => fn());
     const { MESSAGE_NAMES } = await import('../src/shared/messages');
     await messages[MESSAGE_NAMES.HttpRequest]({ id: 'first', url: 'https://www.youtube.com', method: 'GET' });
-    expect(replies[0][1].statusCode).toBe(401);
+    expect(decodeHttpResponse(replies.find(r => r[0] === MESSAGE_NAMES.HttpResponse)[1]).statusCode).toBe(401);
     request = () => new Promise(resolve => { finish = resolve; });
     const pending = messages[MESSAGE_NAMES.HttpRequest]({ id: 'late', url: 'https://www.youtube.com' });
     events['iina.window-will-close'].forEach(fn => fn());
     finish!({ statusCode: 200, text: '{}' });
     await pending;
-    expect(replies).toHaveLength(1);
+    expect(replies.filter(r => r[0] === MESSAGE_NAMES.HttpResponse)).toHaveLength(1);
     expect(timers.size).toBe(0);
 });
 
@@ -256,12 +257,12 @@ test('playback monitor does not read native state when disabled, stopped, or con
     }
 });
 
-test('video activation uses the IINA core playback API and validates IDs', async () => {
+test('video activation replaces media in the current player and validates IDs', async () => {
     const { handlePlayItem } = await import('../src/plugin/playback');
-    const opened: string[] = [];
-    globalThis.iina = { core: { open(url: string) { opened.push(url); } } } as any;
+    const opened: unknown[] = [];
+    globalThis.iina = { mpv: { command(name: string, args: string[]) { opened.push([name, args]); } } } as any;
     expect(handlePlayItem({ videoId, url: 'https://example.com/untrusted' })).toBe(true);
-    expect(opened).toEqual([`https://www.youtube.com/watch?v=${videoId}`]);
+    expect(opened).toEqual([["loadfile", [`https://www.youtube.com/watch?v=${videoId}`, "replace"]]]);
     expect(handlePlayItem({ videoId: 'invalid', url: 'https://example.com' })).toBe(false);
     delete globalThis.iina;
 });
@@ -284,4 +285,79 @@ test('global routing never switches to an unmanaged string player label', async 
     expect(created).toBe(1);
     expect(messages.map(message => message[0])).toEqual([1, 1]);
     expect(callbacks.playerReady).toBeUndefined();
+});
+
+describe('integrated playback and related results', () => {
+    const next = (results: any[]) => ({ contents: { twoColumnWatchNextResults: { secondaryResults: { secondaryResults: { results } } } } });
+    const chip = (text: string, token: string, isSelected = false) => ({ relatedChipCloudRenderer: { content: { chipCloudRenderer: { chips: [
+        { chipCloudChipRenderer: { text: { simpleText: text }, isSelected, navigationEndpoint: { continuationCommand: { token } } } }
+    ] } } } });
+    const page = (items: any[]) => ({ onResponseReceivedEndpoints: [{ reloadContinuationItemsCommand: { targetId: 'watch-next-feed', continuationItems: items } }] });
+
+    test('uses only the Related chip and its scoped continuation, excluding mixed cards and comments', async () => {
+        const { fetchRelatedFeed } = await import('../src/ui/innertube/feedBrowse');
+        const calls: any[] = [];
+        respond = request => {
+            calls.push(request.body);
+            const token = request.body?.continuation;
+            if (token === 'related-page') return { statusCode: 200, text: JSON.stringify(page([video('Addiction explained'),
+                { continuationItemRenderer: { continuationEndpoint: { continuationCommand: { token: 'more-related' } } } }])) };
+            if (token === 'more-related') return { statusCode: 200, text: JSON.stringify(page([])) };
+            return { statusCode: 200, text: JSON.stringify(next([chip('All', 'mixed'), chip('Related', 'related-page'), video('Spicy food')])) };
+        };
+        const result = await fetchRelatedFeed('source12345');
+        expect(result.items.map(item => item.title)).toEqual(['Addiction explained']);
+        expect(calls.map(call => call.continuation).filter(Boolean)).toEqual(['related-page', 'more-related']);
+    });
+
+    test('does not fall back to random recommendations when the filter is absent or fails', async () => {
+        const { fetchRelatedFeed } = await import('../src/ui/innertube/feedBrowse');
+        respond = () => ({ statusCode: 200, text: JSON.stringify(next([video('Spicy food')])) });
+        expect((await fetchRelatedFeed('source12345')).failureReason).toBe('related_unavailable');
+        respond = request => request.body?.continuation ? { statusCode: 503, text: '{}' }
+            : { statusCode: 200, text: JSON.stringify(next([chip('Related', 'related-page'), video('Spicy food')])) };
+        const result = await fetchRelatedFeed('source12345');
+        expect(result.items).toEqual([]);
+        expect(result.statusCode).toBe(503);
+    });
+
+    test('selected Related filter does not fetch mixed chips or unrelated response sections', async () => {
+        const { relatedCards, relatedFilter } = await import('../src/ui/parsers/related');
+        const payload = { ...next([chip('Related', '', true), video('Topic match')]), comments: video('Other video') };
+        expect(relatedFilter(payload)?.selected).toBe(true);
+        expect(parseFeedItemsFromBrowseResponse(relatedCards(payload, true)).items.map(item => item.title)).toEqual(['Topic match']);
+        expect(relatedCards({ onResponseReceivedEndpoints: [{ appendContinuationItemsAction: { targetId: 'comments', continuationItems: [video()] } }] })).toEqual([]);
+    });
+
+    test.each(['feed', 'search', 'related'] as const)('playback keeps the %s view and list intact', async activeView => {
+        globalThis.document = { querySelector: () => null, querySelectorAll: () => [] } as any;
+        const { state } = await import('../src/ui/state');
+        const { createRelatedController } = await import('../src/ui/controller/related');
+        const items = parseFeedItemsFromBrowseResponse(video()).items;
+        state.activeView = activeView;
+        state.currentPlaybackVideoId = 'oldvideo123';
+        state.relatedState.items = items;
+        let requests = 0;
+        respond = () => { requests++; throw new Error('Unexpected request'); };
+        const controller = createRelatedController({ updateActiveViewLoadingIndicators() {}, playFeedItem() {}, renderModeTabs() {},
+            resolveFeedItemPresentation: () => ({ title: '', thumbnailUrl: '', durationLabel: '', channelLine: '', statsLine: '' }),
+            buildFinalFilteredFeedItems: async items => items });
+        controller.handlePlaybackLifecycleEvent({ event: 'started', videoId, observedAt: new Date().toISOString() } as any);
+        expect(state.activeView).toBe(activeView);
+        expect(state.relatedState.items).toBe(items);
+        expect(state.currentPlaybackVideoId).toBe(videoId);
+        expect(requests).toBe(0);
+    });
+
+    test('modern cards recover real author, views and publication text without metadata requests', () => {
+        const modern = { lockupViewModel: { contentId: videoId, contentType: 'LOCKUP_CONTENT_TYPE_VIDEO',
+            metadata: { lockupMetadataViewModel: { title: { content: 'Modern video' }, metadata: { contentMetadataViewModel: { metadataRows: [
+                { metadataParts: [{ text: { content: 'RECOVERable with Dr. L', commandRuns: [{ startIndex: 0, length: 23, onTap: { innertubeCommand: { browseEndpoint: { browseId: 'UCchannel' } } } }] } }] },
+                { metadataParts: [{ text: { content: '12K views' } }, { text: { content: '2 days ago' } }] }
+            ] } } } }, contentImage: { thumbnailViewModel: { image: { sources: [{ url: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` }] } } } } };
+        const item = parseFeedItemsFromBrowseResponse(modern).items[0];
+        expect(item.channelTitle).toBe('RECOVERable with Dr. L');
+        expect(item.viewCountText).toContain('12');
+        expect(item.published).toBe('2 days ago');
+    });
 });

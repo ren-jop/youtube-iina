@@ -1,3 +1,4 @@
+import { relatedCards, relatedFilter } from "../parsers/related";
 import {
     CHANNEL_BROWSE_MAX_PAGES,
     CHANNEL_PREFETCH_TARGET,
@@ -250,6 +251,8 @@ function mapFeedFailureToMessage(reason: FeedFetchFailureReason | undefined, fal
     }
 
     switch (reason) {
+        case "related_unavailable":
+            return "YouTube did not offer a Related filter for this video. Mixed recommendations were omitted.";
         case "auth_required":
             return "Sign in again to refresh this view.";
         case "json_parse_error":
@@ -302,8 +305,7 @@ export async function fetchLoggedInSubscriptionsFeed(dependencies: FetchLoggedIn
 }
 
 export async function fetchRelatedFeed(
-    videoId: string,
-    dependencies?: FetchLoggedInBrowseFeedDependencies
+    videoId: string
 ): Promise<FeedFetchResult> {
     const normalizedVideoId = videoId.trim();
     if (!normalizedVideoId) {
@@ -314,83 +316,37 @@ export async function fetchRelatedFeed(
         };
     }
 
-    const canUseTvPath = Boolean(dependencies && dependencies.isTvAuthAvailable());
+    // Use WEB's explicit Related filter even when signed in. TV's unfiltered
+    // watch-next list mixes topic matches with personalized recommendations.
+    let config: Awaited<ReturnType<typeof getInnertubeConfig>>;
+    try { config = await getInnertubeConfig(); }
+    catch { return { items: [], diagnostics: createEmptyFeedParseDiagnostics(), failureReason: "unknown_error" }; }
 
-    let webConfig: Awaited<ReturnType<typeof getInnertubeConfig>> | null = null;
-    if (!canUseTvPath) {
+    const requestPage = async (continuation?: string): Promise<PageFetchResult> => {
         try {
-            webConfig = await getInnertubeConfig();
-        } catch {
-            return {
-                items: [],
-                diagnostics: createEmptyFeedParseDiagnostics(),
-                failureReason: "unknown_error"
-            };
-        }
+            const response = await sendHttpRequest({
+                method: "POST",
+                url: buildInnertubeUrl("next", config.apiKey),
+                headers: buildWebInnertubeHeaders(config),
+                body: { context: { client: buildWebClientContext(config) },
+                    ...(continuation ? { continuation } : { videoId: normalizedVideoId }) }
+            }, FEED_TIMEOUT_MS);
+            if (!response.ok || !response.text) return { failureReason: "http_error", statusCode: response.statusCode };
+            try { return { payload: JSON.parse(response.text) }; }
+            catch { return { failureReason: "json_parse_error", statusCode: response.statusCode }; }
+        } catch { return { failureReason: "unknown_error" }; }
+    };
+    const initial = await requestPage();
+    if (!initial.payload) return { items: [], diagnostics: createEmptyFeedParseDiagnostics(), failureReason: initial.failureReason, statusCode: initial.statusCode };
+    const filter = relatedFilter(initial.payload);
+    if (!filter || (!filter.selected && !filter.token)) {
+        return { items: [], diagnostics: createEmptyFeedParseDiagnostics(), failureReason: "related_unavailable" };
     }
-
-    const result = await collectFeedItemsFromBrowsePages(
-        async (continuation?: string): Promise<PageFetchResult> => {
-            if (canUseTvPath && dependencies) {
-                return sendTvInnertubeRequest(
-                    "next",
-                    continuation ? { continuation } : { videoId: normalizedVideoId },
-                    FEED_TIMEOUT_MS,
-                    dependencies
-                );
-            }
-
-            if (!webConfig) {
-                return {
-                    failureReason: "unknown_error"
-                };
-            }
-
-            let response: Awaited<ReturnType<typeof sendHttpRequest>>;
-            try {
-                response = await sendHttpRequest(
-                    {
-                        method: "POST",
-                        url: buildInnertubeUrl("next", webConfig.apiKey),
-                        headers: buildWebInnertubeHeaders(webConfig),
-                        body: {
-                            context: {
-                                client: buildWebClientContext(webConfig)
-                            },
-                            ...(continuation
-                                ? { continuation }
-                                : { videoId: normalizedVideoId })
-                        }
-                    },
-                    FEED_TIMEOUT_MS
-                );
-            } catch {
-                return {
-                    failureReason: "unknown_error"
-                };
-            }
-
-            if (!response.ok || !response.text) {
-                return {
-                    failureReason: "http_error",
-                    statusCode: response.statusCode
-                };
-            }
-
-            try {
-                return {
-                    payload: JSON.parse(response.text)
-                };
-            } catch {
-                return {
-                    failureReason: "json_parse_error",
-                    statusCode: response.statusCode
-                };
-            }
-        },
-        RELATED_PREFETCH_TARGET,
-        LOGGED_IN_BROWSE_MAX_PAGES
-    );
+    const result = await collectFeedItemsFromBrowsePages(async continuation => {
+        if (!continuation && filter.selected) return { payload: relatedCards(initial.payload, true) };
+        const page = await requestPage(continuation || filter.token);
+        return page.payload ? { payload: relatedCards(page.payload) } : page;
+    }, RELATED_PREFETCH_TARGET, LOGGED_IN_BROWSE_MAX_PAGES);
 
     return {
         ...result,

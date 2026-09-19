@@ -1,8 +1,11 @@
+import type { HttpResponseWirePayload } from "./httpTransport";
+
 export const MESSAGE_NAMES = {
     PlayItem: "playItem",
     OpenExternalUrl: "openExternalUrl",
     HttpRequest: "httpRequest",
     HttpResponse: "httpResponse",
+    HttpProgress: "httpProgress",
     ReportWatchStatusRequest: "reportWatchStatusRequest",
     ReportWatchStatusResponse: "reportWatchStatusResponse",
     PlaybackLifecycleEvent: "playbackLifecycleEvent",
@@ -37,6 +40,12 @@ export interface HttpResponsePayload {
     reason?: string;
     text?: string;
     error?: string;
+}
+
+export interface HttpProgressPayload {
+    id: string;
+    stage: "received" | "completed";
+    statusCode?: number;
 }
 
 export type WatchStatusSource = "anonymous" | "logged_in";
@@ -100,7 +109,8 @@ export interface UiToPluginMessagePayloads {
 }
 
 export interface PluginToUiMessagePayloads {
-    httpResponse: HttpResponsePayload;
+    httpResponse: HttpResponsePayload | HttpResponseWirePayload;
+    httpProgress: HttpProgressPayload;
     reportWatchStatusResponse: ReportWatchStatusResponsePayload;
     playbackLifecycleEvent: PlaybackLifecycleEventPayload;
     playbackPositionEvent: PlaybackPositionEventPayload;

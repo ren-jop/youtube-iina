@@ -6,6 +6,7 @@ import type {
     RequestSettingsSyncPayload
 } from "../shared/messages";
 
+import { encodeHttpResponse, requestLabel } from "../shared/httpTransport";
 import { normalizeHttpResponse } from "./httpResponse";
 import { MESSAGE_NAMES } from "../shared/messages";
 import { installPlaybackHookScaffolding } from "./hooks";
@@ -161,7 +162,7 @@ event.on("iina.window-loaded", () => {
             return;
         }
 
-        hideSidebar();
+        // Leave the sidebar and its current list visible during playback.
     });
 
     sidebar.onMessage(MESSAGE_NAMES.OpenExternalUrl, (data: OpenExternalUrlPayload) => {
@@ -186,6 +187,10 @@ event.on("iina.window-loaded", () => {
         const url = String(data.url);
         const method = (data.method || "GET").toUpperCase();
 
+        const label = requestLabel(url);
+        const startedAt = Date.now();
+        sidebar.postMessage(MESSAGE_NAMES.HttpProgress, { id: encodeURIComponent(requestId), stage: "received" });
+        console.log(`YouTube: ${label} started`);
         const options = {
             headers: data.headers ?? {},
             params: {},
@@ -202,7 +207,12 @@ event.on("iina.window-loaded", () => {
         }
         // A request may finish after the player window has been destroyed.
         if (!windowClosed) {
-            sidebar.postMessage(MESSAGE_NAMES.HttpResponse, normalizeHttpResponse(requestId, result));
+            const response = normalizeHttpResponse(requestId, result);
+            console.log(`YouTube: ${label} HTTP ${response.statusCode} in ${Date.now() - startedAt}ms`);
+            sidebar.postMessage(MESSAGE_NAMES.HttpProgress, {
+                id: encodeURIComponent(requestId), stage: "completed", statusCode: response.statusCode
+            });
+            sidebar.postMessage(MESSAGE_NAMES.HttpResponse, encodeHttpResponse(response));
         }
     });
 
