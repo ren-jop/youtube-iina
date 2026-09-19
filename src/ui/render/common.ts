@@ -1,3 +1,4 @@
+import { resolveChannelName } from "../innertube/channelNames";
 import type { FeedState, FeedVideoItem, ViewName } from "../types";
 import { normalizeChannelHandle } from "../utils/text";
 
@@ -170,6 +171,8 @@ export interface PlayableVideoItemPresentation {
 }
 
 export interface PlayableVideoListItemDependencies {
+    videoId?: string;
+    onChannelResolved?: (name: string) => void;
     title: string;
     presentation: PlayableVideoItemPresentation;
     onPlay: () => void;
@@ -213,6 +216,13 @@ export function createPlayableVideoListItem(dependencies: PlayableVideoListItemD
     const channel = document.createElement("p");
     channel.className = "yt-item-meta yt-item-channel";
     channel.textContent = safeChannelLine;
+    if (safeChannelLine === "Unknown channel" && dependencies.videoId) {
+        channel.textContent = "Loading channel…";
+        void resolveChannelName(dependencies.videoId).then(name => {
+            if (name) dependencies.onChannelResolved?.(name);
+            channel.textContent = name || "Channel unavailable";
+        });
+    }
 
     const stats = document.createElement("p");
     stats.className = "yt-item-meta yt-item-stats";
@@ -282,6 +292,8 @@ export function renderPlayableVideoList(dependencies: RenderPlayableVideoListDep
     state.items.forEach((itemData) => {
         const presentation = resolveItemPresentation(itemData);
         const item = createPlayableVideoListItem({
+            videoId: itemData.videoId,
+            onChannelResolved: name => { itemData.channelTitle = name; },
             title: presentation.title,
             presentation,
             emptyChannelFallback,

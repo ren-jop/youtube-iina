@@ -1,3 +1,4 @@
+import { getOptions } from "../storage/libraryData";
 import { MESSAGE_NAMES } from "../../shared/messages";
 import {
     FEED_EMPTY_NO_FAVORITES_TEXT,
@@ -95,7 +96,8 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
             const result = await fetchChannelFeedFromInnertube(channelId);
             return {
                 channelId,
-                items: result.items,
+                items: result.items.map(item => ({ ...item, channelTitle: !item.channelTitle || item.channelTitle === "Unknown channel"
+                    ? state.favorites.find(channel => channel.channelId === channelId)?.title || item.channelTitle : item.channelTitle })),
                 hadError: Boolean(result.failureReason),
                 failureReason: result.failureReason,
                 statusCode: result.statusCode,
@@ -176,6 +178,7 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
         }
 
         state.iinaApi.postMessage(MESSAGE_NAMES.PlayItem, {
+            quality: getOptions().playbackQuality,
             videoId: item.videoId,
             url: `https://www.youtube.com/watch?v=${item.videoId}`
         });

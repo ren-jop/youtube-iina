@@ -96,3 +96,14 @@ YouTube responses now cross the native message bridge as encoded envelopes. This
 To troubleshoot, expand **Diagnostics** at the bottom of the sidebar, reproduce the failed request, click **Select report**, and press Command+C. Share that report. It includes plugin version, request stages, timing, and HTTP status without tokens, search terms, or response content. Entries are bounded and kept only in memory. Native plugin logs also contain safe request categories and timing.
 
 This update passes 36 regression tests, TypeScript checks, manifest verification, and the production build. Native Mac and live-account testing remain unverified.
+
+
+## 1.2.5 playback and portable data
+
+Video selection now inserts into the current player's playlist and uses `playlist.play`, then removes previous entries so they do not autoplay. Unlike raw `loadfile`, [IINA's native playlist switch](https://github.com/iina/iina/blob/develop/iina/PlayerCore.swift) activates the display and pauses audio until video sizing is ready. The plugin does not toggle fullscreen, reopen a playing window, or restore native mpv property observers. Rapid clicks are coalesced; closing the window cancels a pending selection. Playback timing appears in Diagnostics.
+
+**Settings & data** at the bottom of the sidebar controls playback quality (Auto or H.264-preferred 1080p/720p), missing-channel lookups, compact cards, statistics, Related matching, and local history. If a Related chip is missing, title-topic matching filters watch-next candidates conservatively; it is not semantic matching and may return fewer results. Strict mode disables that fallback.
+
+History records the latest visit per video (up to 5,000) after file-loaded events, not watch progress, and starts with this version. JSON backups contain saved local channels, these settings and history. CSV exports use Channel Id, Channel Url and Channel Title columns. Imports accept the versioned plugin JSON or a subscriptions CSV, validate before writing, preview counts, merge without deleting existing channels, and optionally import settings. OAuth credentials and caches are excluded. Native folder/file choosers handle transfer; saved backups are verified and revealed in Finder. Keep a backup before uninstalling the plugin. Direct import of these files into Google is not provided.
+
+Mac checks: switch from search and feed while fullscreen, including rapid selections; verify new picture and sound belong to the same video, the sidebar remains visible, and no old video autoplays next. Export a backup, cancel an import, then import a backup and a subscriptions CSV; verify names and settings. Automated tests cannot validate the native display or file dialogs.

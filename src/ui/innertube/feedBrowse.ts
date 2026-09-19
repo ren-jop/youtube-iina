@@ -1,4 +1,5 @@
-import { relatedCards, relatedFilter } from "../parsers/related";
+import { getOptions } from "../storage/libraryData";
+import { currentVideoTitle, filterByTopic, relatedCards, relatedFilter } from "../parsers/related";
 import {
     CHANNEL_BROWSE_MAX_PAGES,
     CHANNEL_PREFETCH_TARGET,
@@ -305,7 +306,7 @@ export async function fetchLoggedInSubscriptionsFeed(dependencies: FetchLoggedIn
 }
 
 export async function fetchRelatedFeed(
-    videoId: string
+    videoId: string, fallbackTitle = ""
 ): Promise<FeedFetchResult> {
     const normalizedVideoId = videoId.trim();
     if (!normalizedVideoId) {
@@ -340,7 +341,13 @@ export async function fetchRelatedFeed(
     if (!initial.payload) return { items: [], diagnostics: createEmptyFeedParseDiagnostics(), failureReason: initial.failureReason, statusCode: initial.statusCode };
     const filter = relatedFilter(initial.payload);
     if (!filter || (!filter.selected && !filter.token)) {
-        return { items: [], diagnostics: createEmptyFeedParseDiagnostics(), failureReason: "related_unavailable" };
+        if (getOptions().relatedMode === "strict") return { items: [], diagnostics: createEmptyFeedParseDiagnostics(), failureReason: "related_unavailable" };
+        const parsed = parseFeedItemsFromBrowseResponse(relatedCards(initial.payload, true));
+        const title = currentVideoTitle(initial.payload) || fallbackTitle;
+        const items = filterByTopic(parsed.items, title).filter(item => item.videoId !== normalizedVideoId).slice(0, RELATED_ITEMS_LIMIT);
+        return { items, diagnostics: parsed.diagnostics, notice: items.length
+            ? "Matched by title topic because YouTube did not supply a Related filter."
+            : "No close title-topic matches found. Try another video or switch Related mode in Settings & data." };
     }
     const result = await collectFeedItemsFromBrowsePages(async continuation => {
         if (!continuation && filter.selected) return { payload: relatedCards(initial.payload, true) };

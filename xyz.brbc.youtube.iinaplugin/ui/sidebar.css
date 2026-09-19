@@ -706,3 +706,12 @@ body {
 .yt-diagnostics { margin: 12px; font-size: 12px; opacity: .85; }
 .yt-diagnostics summary { cursor: pointer; }
 .yt-diagnostics textarea { box-sizing: border-box; width: 100%; margin: 8px 0; font: 11px monospace; resize: vertical; }
+
+.yt-library label { display: block; margin: 10px 0; }
+.yt-library select { max-width: 100%; margin-top: 6px; }
+.yt-library [hidden] { display: none !important; }
+.yt-library p { font-size: 12px; line-height: 1.5; }
+.yt-library button { margin: 4px 4px 4px 0; }
+.yt-compact .yt-item-thumb-wrapper { max-width: 120px; }
+.yt-compact .yt-item { gap: 10px; padding-top: 6px; padding-bottom: 6px; }
+.yt-hide-stats .yt-item-stats { display: none; }

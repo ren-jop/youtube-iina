@@ -17,6 +17,7 @@ export const MESSAGE_NAMES = {
 export type MessageName = typeof MESSAGE_NAMES[keyof typeof MESSAGE_NAMES];
 
 export interface PlayItemPayload {
+    quality?: "auto" | "1080" | "720";
     videoId: string;
     url: string;
 }
@@ -101,6 +102,7 @@ export interface SettingsSyncPayload {
 }
 
 export interface UiToPluginMessagePayloads {
+    libraryTransfer: { action: string; text?: string; format?: string };
     playItem: PlayItemPayload;
     openExternalUrl: OpenExternalUrlPayload;
     httpRequest: HttpRequestPayload;
@@ -109,6 +111,8 @@ export interface UiToPluginMessagePayloads {
 }
 
 export interface PluginToUiMessagePayloads {
+    libraryTransferResult: string;
+    playbackSwitchStatus: { stage: string; elapsedMs?: number };
     httpResponse: HttpResponsePayload | HttpResponseWirePayload;
     httpProgress: HttpProgressPayload;
     reportWatchStatusResponse: ReportWatchStatusResponsePayload;

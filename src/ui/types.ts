@@ -152,6 +152,7 @@ export interface FeedParseResult {
 export type FeedFetchFailureReason = "related_unavailable" | "http_error" | "json_parse_error" | "parse_empty" | "auth_required" | "unknown_error";
 
 export interface FeedFetchResult {
+    notice?: string;
     items: FeedVideoItem[];
     diagnostics: FeedParseDiagnostics;
     failureReason?: FeedFetchFailureReason;

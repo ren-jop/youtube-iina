@@ -59,6 +59,7 @@ export function createRelatedController(dependencies: RelatedControllerDependenc
     const refreshRelated = async (): Promise<void> => {
         const playbackVideoId = state.currentPlaybackVideoId.trim();
         const refreshId = ++state.relatedRefreshSequence;
+        const sourceTitle = [...state.feedState.items, ...state.searchState.videos, ...state.relatedState.items, ...state.subscriptionsState.items].find(item => item.videoId === playbackVideoId)?.title;
 
         if (!playbackVideoId) {
             state.relatedState.isLoading = false;
@@ -76,7 +77,7 @@ export function createRelatedController(dependencies: RelatedControllerDependenc
         renderRelated();
 
         try {
-            const relatedResult = await fetchRelatedFeed(playbackVideoId);
+            const relatedResult = await fetchRelatedFeed(playbackVideoId, sourceTitle);
 
             const withoutCurrentVideo = relatedResult.items.filter((item) => item.videoId !== playbackVideoId);
             const items = await dependencies.buildFinalFilteredFeedItems(withoutCurrentVideo, RELATED_ITEMS_LIMIT);
@@ -86,7 +87,7 @@ export function createRelatedController(dependencies: RelatedControllerDependenc
 
             state.relatedState.isLoading = false;
             state.relatedState.items = items;
-            state.relatedState.warning = "";
+            state.relatedState.warning = relatedResult.notice || "";
             if (relatedResult.failureReason) {
                 const statusCodeSuffix = Number.isFinite(relatedResult.statusCode)
                     ? ` (HTTP ${relatedResult.statusCode})`

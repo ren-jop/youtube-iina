@@ -1,3 +1,4 @@
+import { getOptions } from "../storage/libraryData";
 import { MESSAGE_NAMES } from "../../shared/messages";
 import {
     SEARCH_CHANNELS_LIMIT,
@@ -226,6 +227,7 @@ export function createSearchController(dependencies: SearchControllerDependencie
         }
 
         state.iinaApi.postMessage(MESSAGE_NAMES.PlayItem, {
+            quality: getOptions().playbackQuality,
             videoId: video.videoId,
             url: `https://www.youtube.com/watch?v=${video.videoId}`
         });

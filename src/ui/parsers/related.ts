@@ -50,3 +50,25 @@ export function relatedCards(payload: unknown, initial = false): unknown[] {
     }
     return results;
 }
+
+const TOPIC_STOP_WORDS = new Set("a an the and or but how why what when where who which this that these those with without from your you yours our their for are was were have has had not all any can could should would will does dont doesn't into about just more most best video videos watch watching make making get gets new really very only some its it's they them his her than then now part episode official full review explained levels level things tips ways challenge day days minutes minute hours hour life world people time biggest greatest top stop start actually".split(" "));
+export function topicWords(title: string): Set<string> {
+    return new Set((title.toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu) || []).filter(word=>word.length>=3 && !/^\d+$/.test(word) && !TOPIC_STOP_WORDS.has(word)).map(word=>word.length>5 ? word.replace(/(ing|ies|s)$/, match=>match==='ies'?'y':'') : word));
+}
+export function currentVideoTitle(payload: unknown): string {
+    const contents=asObject(asObject(payload)?.contents);
+    const results=asObject(asObject(asObject(contents?.twoColumnWatchNextResults)?.results)?.results);
+    for(const item of asArray(results?.contents)) {
+        const title=extractText(asObject(asObject(item)?.videoPrimaryInfoRenderer)?.title);
+        if(title) return title;
+    }
+    return extractText(asObject(asObject(payload)?.videoDetails)?.title);
+}
+export function filterByTopic<T extends { title: string }>(items: T[], title: string): T[] {
+    const source=topicWords(title);
+    if(!source.size) return [];
+    return items.filter(item=>{
+        const shared=[...topicWords(item.title)].filter(word=>source.has(word));
+        return shared.length>=2 || shared.some(word=>word.length>=5);
+    });
+}

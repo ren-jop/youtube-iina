@@ -1,3 +1,4 @@
+import { installDataTransfer } from "./dataTransfer";
 import type {
     HttpRequestPayload,
     OpenExternalUrlPayload,
@@ -43,6 +44,10 @@ console.log("YouTube: Plugin loaded");
 let managedPlayerId: number | null = null;
 let windowReady = false;
 let windowClosed = false;
+let playTimer: ReturnType<typeof setTimeout> | null = null;
+let switchStartedAt = 0;
+let switchVideoId = "";
+installDataTransfer(() => windowClosed);
 let showTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingShowSidebar = false;
 let sidebarVisible = false;
@@ -129,6 +134,10 @@ event.on("iina.window-loaded", () => {
     event.on("iina.file-loaded", () => {
         windowClosed = false;
         const path = String(core.status.url || "");
+        if (switchStartedAt && path.includes(switchVideoId)) {
+            sidebar.postMessage("playbackSwitchStatus", { stage: "loaded", elapsedMs: Date.now() - switchStartedAt });
+            switchStartedAt = 0;
+        }
         if (isSplashPath(path)) sponsorBlockController?.stop();
         else sponsorBlockController?.start();
         if (!isSplashPath(path)) {
@@ -145,6 +154,9 @@ event.on("iina.window-loaded", () => {
 
     event.on("iina.window-will-close", () => {
         windowClosed = true;
+        if (playTimer !== null) clearTimeout(playTimer);
+        playTimer = null;
+        switchStartedAt = 0;
         if (showTimer !== null) clearTimeout(showTimer);
         sponsorBlockController?.stop();
         if (managedPlayerId !== null) global.postMessage("playerClosed", { playerId: managedPlayerId });
@@ -157,10 +169,23 @@ event.on("iina.window-loaded", () => {
             return;
         }
 
-        const played = handlePlayItem(data);
-        if (!played) {
-            return;
-        }
+        if (!/^[A-Za-z0-9_-]{11}$/.test(data.videoId || "")) return;
+        if (playTimer !== null) clearTimeout(playTimer);
+        // Coalesce double clicks and rapid selections: only the latest starts.
+        playTimer = setTimeout(() => {
+            playTimer = null;
+            if (windowClosed) return;
+            switchStartedAt = Date.now();
+            switchVideoId = data.videoId;
+            try {
+                sponsorBlockController?.stop();
+                if (!handlePlayItem(data)) throw new Error("Player rejected selection");
+                sidebar.postMessage("playbackSwitchStatus", { stage: "loading" });
+            } catch {
+                switchStartedAt = 0;
+                sidebar.postMessage("playbackSwitchStatus", { stage: "failed" });
+            }
+        }, 180);
 
         // Leave the sidebar and its current list visible during playback.
     });

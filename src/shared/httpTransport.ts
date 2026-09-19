@@ -26,7 +26,7 @@ export function requestLabel(url: string): string {
     // Deliberate allowlist: never log queries, video IDs, tokens, or request bodies.
     const path = url.replace(/^https?:\/\/[^/]+/, '').split(/[?#]/)[0];
     const known: Record<string, string> = {
-        '/': 'YouTube homepage', '/tv': 'YouTube TV config',
+        '/oembed': 'Channel attribution', '/': 'YouTube homepage', '/tv': 'YouTube TV config',
         '/youtubei/v1/search': 'YouTube search', '/youtubei/v1/browse': 'YouTube feed',
         '/youtubei/v1/player': 'Video metadata', '/youtubei/v1/next': 'Related videos',
         '/o/oauth2/device/code': 'Sign-in code', '/o/oauth2/token': 'Sign-in token',

@@ -115,6 +115,35 @@
             </section>
         </main>
 
+        <details class="yt-diagnostics yt-library" data-library>
+            <summary>Settings &amp; data</summary>
+            <label><input type="checkbox" data-option="rememberHistory"> Save viewing history locally</label>
+            <p>Remembers the latest visit to up to 5,000 videos from this version onward. Does not record playback progress or send history to Google.</p>
+            <label><input type="checkbox" data-option="resolveChannels"> Look up missing channel names</label>
+            <label><input type="checkbox" data-option="compactCards"> Compact video cards</label>
+            <label><input type="checkbox" data-option="showStats"> Show video statistics</label>
+            <label>Playback quality (next video)
+                <select data-option="playbackQuality">
+                    <option value="auto">Auto / highest available</option>
+                    <option value="1080">Up to 1080p, prefer H.264</option>
+                    <option value="720">Up to 720p, prefer H.264</option>
+                </select>
+            </label>
+            <label>Related videos
+                <select data-option="relatedMode">
+                    <option value="topic">YouTube Related, with title-topic fallback</option>
+                    <option value="strict">YouTube Related filter only</option>
+                </select>
+            </label>
+            <p>Topic matching is conservative and may miss relevant videos. For window resizing between videos, check IINA’s “Resize window to fit video size” setting.</p>
+            <button type="button" data-transfer="json">Export backup</button>
+            <button type="button" data-transfer="csv">Export channels CSV</button>
+            <button type="button" data-transfer="import">Import JSON / CSV</button>
+            <p>Backups contain local channels, history and these settings. Import merges a plugin backup or a subscriptions CSV with Channel Id and Channel Title columns. Login credentials are excluded. These files preserve your data; direct import into a Google account is not provided.</p>
+            <label hidden><input type="checkbox" data-import-settings> Also import settings</label>
+            <button type="button" data-import-confirm hidden>Merge imported data</button>
+            <p data-library-status role="status" aria-live="polite"></p>
+        </details>
         <details class="yt-diagnostics">
             <summary>Diagnostics</summary>
             <p>If something fails, select this report, copy it, and share it.</p>
