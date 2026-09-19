@@ -119,6 +119,8 @@ export function renderSearchResults(dependencies: SearchRenderDependencies): voi
             const presentation = resolveVideoPresentation(video, metadata);
 
             const item = createPlayableVideoListItem({
+                videoId: video.videoId,
+                onChannelResolved: name => { video.channelTitle = name; },
                 title: video.title,
                 presentation,
                 itemClassName: "yt-item-feed-layout",

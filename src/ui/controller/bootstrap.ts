@@ -1,3 +1,6 @@
+import { initializeLibrary } from "./library";
+import { recordPlayedVideo } from "../storage/libraryData";
+import { recordDiagnostic } from "../bridge/diagnostics";
 import { initializeDiagnostics } from "../bridge/diagnostics";
 import { ensureHttpBridgeListener, setHttpBridgeApi } from "../bridge/httpBridge";
 import { UI_SETTINGS_SCHEMA_VERSION } from "../constants";
@@ -15,6 +18,13 @@ import { createSubscriptionsController } from "./subscriptions";
 
 export function initializeSidebar(): void {
     initializeDiagnostics();
+    state.iinaApi?.onMessage("playbackSwitchStatus", payload => {
+        recordDiagnostic(`Playback ${payload.stage}${Number.isFinite(payload.elapsedMs) ? ` in ${payload.elapsedMs}ms` : ""}`);
+        if (payload.stage === "failed") {
+            const status = document.querySelector<HTMLElement>("[data-library-status]");
+            if (status) status.textContent = "IINA could not switch videos. Try the selection again.";
+        }
+    });
     setHttpBridgeApi(state.iinaApi);
 
     const navigationController = createNavigationController();
@@ -116,7 +126,14 @@ export function initializeSidebar(): void {
 
     const hookController = createHookController({
         iinaApi: state.iinaApi,
-        onPlaybackLifecycleEvent: relatedController.handlePlaybackLifecycleEvent,
+        onPlaybackLifecycleEvent: payload => {
+            relatedController.handlePlaybackLifecycleEvent(payload);
+            if (payload.event === "file-loaded" && payload.videoId) {
+                const item = [...state.feedState.items, ...state.searchState.videos, ...state.relatedState.items, ...state.subscriptionsState.items].find(item => item.videoId === payload.videoId);
+                try { recordPlayedVideo({ videoId: payload.videoId, title: item?.title || "", channelTitle: item?.channelTitle || "" }); }
+                catch { recordDiagnostic("Could not save local viewing history"); }
+            }
+        },
         onSettingsSync: (payload) => {
             const flags = payload.featureFlags;
             const currentFlags = state.uiSettings.featureFlags;
@@ -144,6 +161,11 @@ export function initializeSidebar(): void {
         }
     });
 
+    initializeLibrary(() => {
+        renderFavorites();
+        searchController?.renderSearchResults();
+        void feedController.refreshFeed();
+    });
     eventsController.bindTabEvents();
     eventsController.bindSearchEvents();
     ensureHttpBridgeListener();

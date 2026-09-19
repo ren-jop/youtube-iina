@@ -1,3 +1,4 @@
+import info from "../../../xyz.brbc.youtube.iinaplugin/Info.json";
 const entries: string[] = [];
 let update: (() => void) | undefined;
 
@@ -8,7 +9,7 @@ export function recordDiagnostic(message: string): void {
 }
 
 export function diagnosticReport(): string {
-    return ['YouTube for IINA 1.2.3 — request diagnostics',
+    return [`YouTube for IINA ${info.version} — request diagnostics`,
         'No search terms, account tokens, or response bodies are recorded.', ...entries].join('\n');
 }
 

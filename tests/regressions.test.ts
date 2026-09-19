@@ -257,12 +257,16 @@ test('playback monitor does not read native state when disabled, stopped, or con
     }
 });
 
-test('video activation replaces media in the current player and validates IDs', async () => {
+test('video activation uses native playlist lifecycle without reopening or leaving fullscreen', async () => {
     const { handlePlayItem } = await import('../src/plugin/playback');
     const opened: unknown[] = [];
-    globalThis.iina = { mpv: { command(name: string, args: string[]) { opened.push([name, args]); } } } as any;
+    globalThis.iina = {
+        core: { open() { throw new Error('Must not reopen a playing window'); }, get window() { throw new Error('Must not change fullscreen'); } },
+        playlist: { count: () => 1, add(url: string, at: number) { opened.push(['add', url, at]); return true; }, play(index: number) { opened.push(['native-play', index]); } },
+        mpv: { command(name: string, args: string[]) { opened.push([name, args]); } }
+    } as any;
     expect(handlePlayItem({ videoId, url: 'https://example.com/untrusted' })).toBe(true);
-    expect(opened).toEqual([["loadfile", [`https://www.youtube.com/watch?v=${videoId}`, "replace"]]]);
+    expect(opened).toEqual([["add", `https://www.youtube.com/watch?v=${videoId}`, 0], ["native-play", 0], ["playlist-clear", []]]);
     expect(handlePlayItem({ videoId: 'invalid', url: 'https://example.com' })).toBe(false);
     delete globalThis.iina;
 });
@@ -313,7 +317,9 @@ describe('integrated playback and related results', () => {
     test('does not fall back to random recommendations when the filter is absent or fails', async () => {
         const { fetchRelatedFeed } = await import('../src/ui/innertube/feedBrowse');
         respond = () => ({ statusCode: 200, text: JSON.stringify(next([video('Spicy food')])) });
-        expect((await fetchRelatedFeed('source12345')).failureReason).toBe('related_unavailable');
+        const empty = await fetchRelatedFeed('source12345');
+        expect(empty.items).toEqual([]);
+        expect(empty.notice).toContain('No close title-topic matches');
         respond = request => request.body?.continuation ? { statusCode: 503, text: '{}' }
             : { statusCode: 200, text: JSON.stringify(next([chip('Related', 'related-page'), video('Spicy food')])) };
         const result = await fetchRelatedFeed('source12345');
@@ -360,4 +366,32 @@ describe('integrated playback and related results', () => {
         expect(item.viewCountText).toContain('12');
         expect(item.published).toBe('2 days ago');
     });
+});
+
+test('missing-filter fallback loads close topics from the current video title', async () => {
+    const { fetchRelatedFeed } = await import('../src/ui/innertube/feedBrowse');
+    const relevant = video('How to quit digital addictions');
+    relevant.videoRenderer.videoId = '12345678901';
+    relevant.videoRenderer.navigationEndpoint.watchEndpoint.videoId = '12345678901';
+    respond = () => ({ statusCode: 200, text: JSON.stringify({ contents: { twoColumnWatchNextResults: {
+        results: { results: { contents: [{ videoPrimaryInfoRenderer: { title: { simpleText: 'Understanding digital addiction' } } }] } },
+        secondaryResults: { secondaryResults: { results: [video('10 Levels of Spicy Food'), relevant] } }
+    } } }) });
+    const result = await fetchRelatedFeed('source12345');
+    expect(result.items.map(item => item.title)).toEqual(['How to quit digital addictions']);
+    expect(result.notice).toContain('Matched by title topic');
+});
+
+test('channel attribution requests are deduplicated and cached independently of feed loading', async () => {
+    const { resolveChannelName } = await import('../src/ui/innertube/channelNames');
+    let calls = 0;
+    respond = request => {
+        calls++;
+        expect(request.url).toContain('/oembed?url=');
+        return { statusCode: 200, text: JSON.stringify({ author_name: 'A real creator' }) };
+    };
+    const result = await Promise.all([resolveChannelName('author12345'),resolveChannelName('author12345')]);
+    expect(result).toEqual(['A real creator','A real creator']);
+    expect(await resolveChannelName('author12345')).toBe('A real creator');
+    expect(calls).toBe(1);
 });
