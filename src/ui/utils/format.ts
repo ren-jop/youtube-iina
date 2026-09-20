@@ -30,7 +30,7 @@ export function normalizeViewCountText(value: string): string {
         return "";
     }
 
-    if (/views?/i.test(trimmed)) {
+    if (/views?|回視聴|視聴回数|回再生/i.test(trimmed)) {
         return trimmed;
     }
 

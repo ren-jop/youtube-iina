@@ -101,6 +101,7 @@ export function createDiscussionController(): { update: () => void; suspend: () 
     document.querySelectorAll("[data-discussion-refresh]").forEach(button => button.addEventListener("click", () => { suspend(); update(); }));
     document.addEventListener("visibilitychange", () => { if (document.hidden) suspend(); else update(); });
     document.addEventListener("youtube-options-changed", () => { if (active) render(); });
+    document.addEventListener("youtube-playback-requested", suspend);
     window.addEventListener("pagehide", suspend);
     return { update, suspend };
 }

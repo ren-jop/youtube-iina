@@ -6,6 +6,7 @@ export function mapSearchVideosToFeedItems(videos: SearchVideoResult[]): FeedVid
         title: video.title,
         published: video.publishedText,
         channelTitle: video.channelTitle,
+        viewCountText: video.viewCountText,
         durationLabel: video.durationLabel,
         thumbnailUrl: video.thumbnailUrl
     }));

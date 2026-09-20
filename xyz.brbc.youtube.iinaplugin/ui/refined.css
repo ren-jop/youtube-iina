@@ -96,12 +96,6 @@ button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible,.
 .yt-discussion-entry p { font-size:13px; line-height:1.55; margin:5px 0; white-space:pre-wrap; color:#ddd; }
 .yt-discussion-entry small { color:#888; font-size:10px; }
 .yt-discussion>button { margin:12px 8px; }
-body[data-theme="wireframe"] { --line:#ffffff30; }
-[data-theme="wireframe"] .yt-item,[data-theme="wireframe"] .yt-feed-home .yt-item,[data-theme="wireframe"] .yt-view .yt-item { border:1px solid var(--line); border-radius:0; }
-[data-theme="wireframe"] .yt-list { gap:8px; }
-[data-theme="wireframe"] .yt-search-shell,[data-theme="wireframe"] button,[data-theme="wireframe"] select,[data-theme="wireframe"] textarea { border-radius:0; background:transparent; }
-[data-theme="wireframe"] .yt-tab { font-family:ui-monospace,monospace; font-size:11px; }
-[data-theme="wireframe"] .yt-view .yt-item-thumb-wrapper { border:1px solid var(--line); border-radius:0; }
 .yt-hide-channel { display:block; margin:5px 0 0; padding:0; border:0; background:transparent; color:#999; font-size:10px; opacity:0; }
 .yt-item:hover .yt-hide-channel,.yt-item:focus-within .yt-hide-channel { opacity:1; }
 @media(hover:none) { .yt-hide-channel { opacity:1; } }

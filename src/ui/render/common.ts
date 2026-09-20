@@ -240,7 +240,8 @@ export function createPlayableVideoListItem(dependencies: PlayableVideoListItemD
     const updateHide = () => { hide.hidden = !channel.textContent || /^(Unknown channel|Loading channel…|Channel unavailable)$/.test(channel.textContent); };
     updateHide();
     hide.addEventListener("click", event => { event.stopPropagation(); try { hideChannel(channel.textContent || ""); } catch { hide.textContent = "Could not save"; } });
-    content.append(titleElement, channel, stats, hide);
+    const playback = document.createElement("p"); playback.className="yt-item-meta"; playback.dataset.playbackStatus=dependencies.videoId || ""; playback.hidden=true; playback.setAttribute("role","status");
+    content.append(titleElement, channel, stats, playback, hide);
     item.append(content);
 
     return item;

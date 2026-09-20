@@ -27,10 +27,10 @@ export function readLockupMetadata(metadata: unknown): { channel: string; views:
     // Some cards omit author links, but retain the dedicated first metadata row.
     const firstRow = asArray(asObject(rows[0])?.metadataParts);
     const firstLabel = extractText(asObject(firstRow[0])?.text).trim();
-    if (!channel && firstLabel && !/\b(views?|ago|watching|streamed|subscribers?|recommended)\b/i.test(firstLabel)) channel = firstLabel;
+    if (!channel && firstLabel && !/\b(views?|ago|watching|streamed|subscribers?|recommended)\b|回視聴|視聴回数|回再生|\d+\s*(秒|分|時間|日|週間|か月|ヶ月|年)前/i.test(firstLabel)) channel = firstLabel;
     return {
         channel,
-        views: labels.find(label => /\bviews?\b/i.test(label)) || "",
-        published: labels.find(label => /\b(ago|streamed|premiered)\b/i.test(label)) || ""
+        views: labels.find(label => /\bviews?\b|回視聴|視聴回数|回再生/i.test(label)) || "",
+        published: labels.find(label => /\b(ago|streamed|premiered)\b|\d+\s*(秒|分|時間|日|週間|か月|ヶ月|年)前|昨日|今日/i.test(label)) || ""
     };
 }

@@ -21,6 +21,14 @@ For future updates, the plugin's GitHub repository is `rin677/youtube-iina`.
 - In anonymous mode, search and build a favorites list of channels to populate your feed.
 - Optionally, authenticate to load Home and Subscriptions (see [Disclaimer](#disclaimer) about using your Google account).
 
+## Performance and Academic focus
+
+Version 1.2.10 keeps the native playlist-switch path used in 1.2.6. It recovers idle players with stale playlist entries, avoids restarting the same pending video on repeated clicks, and stops discussion polling as soon as a new video is selected. Optional quality-setting failures do not prevent opening a video. The default is now 1080p with an H.264 preference; existing 720p choices remain. You can explicitly choose highest available again in Settings & data. This reduces potential decode load but does not eliminate YouTube/yt-dlp extraction time.
+
+Wireframe is removed and view counts/publication labels are always shown when YouTube supplies them, including Japanese labels. Loading and slow/failure messages appear only inside the selected video card. No pause overlay or separate status banner is added.
+
+Academic focus is optional and works together with Japanese discovery. It locally hides obvious gameplay, pranks, music videos, trailers and sports highlights while keeping uncertain titles and titles that signal educational analysis. For example, game theory, sports science, music lessons and Minecraft research stay eligible. It does not score source credibility or replace checking a source. Existing hidden-channel and excluded-phrase rules remain separate controls.
+
 ## Simple playback and Japanese immersion
 
 Space pauses/resumes while browsing the sidebar; Enter activates a focused card. Text fields keep normal spaces. This plugin has no pause screen, playback banner or SponsorBlock skip/rewind popovers. Old SponsorBlock “ask” settings behave as “ignore”; explicit automatic skipping remains available.
@@ -35,7 +43,7 @@ Inspired by [NihongoTube’s immersion features](https://www.nihongotube.app/fea
 
 Comments and Live chat open inside the YouTube sidebar for the playing video. These are read-only: no posting, threaded replies or archived chat replay. The chat integration uses an independent implementation of the live-chat protocol informed by [petamorikei/iina-youtube-chat](https://github.com/petamorikei/iina-youtube-chat); it does not require installing that plugin. Modern comment entity fields were checked against [YouTube.js](https://github.com/LuanRT/YouTube.js/blob/main/src/parser/classes/comments/CommentView.ts).
 
-Settings & data includes Dark/Wireframe appearance, surface opacity, Japanese discovery, hidden channels, excluded title phrases, clickbait-pattern filtering and minimum video length. Filters are optional local rules, not a judgement of accuracy or production quality. Unknown lengths are kept. Hidden channels match display names, which can change or collide. Japanese discovery translates English searches through MyMemory and displays the Japanese query in the search box. It sets Japanese/Japan and strictly filters discovery to predominantly Japanese titles with kana. Ambiguous titles are excluded; spoken audio cannot be verified from titles. Saved channels stay unchanged. Translation has an eight-second timeout and does not silently fall back to English. These preferences travel with your JSON backup.
+Settings & data includes a single dark appearance, surface opacity, Japanese discovery, hidden channels, excluded title phrases, clickbait-pattern filtering and minimum video length. Filters are optional local rules, not a judgement of accuracy or production quality. Unknown lengths are kept. Hidden channels match display names, which can change or collide. Japanese discovery translates English searches through MyMemory and displays the Japanese query in the search box. It sets Japanese/Japan and strictly filters discovery to predominantly Japanese titles with kana. Ambiguous titles are excluded; spoken audio cannot be verified from titles. Saved channels stay unchanged. Translation has an eight-second timeout and does not silently fall back to English. These preferences travel with your JSON backup.
 
 ## Features
 
