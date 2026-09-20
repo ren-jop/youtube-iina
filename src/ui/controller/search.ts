@@ -1,7 +1,6 @@
 import { getOptions } from "../storage/libraryData";
 import { translateSearchToJapanese } from "../innertube/japanese";
 import { requestPlayback } from "./playerUi";
-import { MESSAGE_NAMES } from "../../shared/messages";
 import {
     SEARCH_CHANNELS_LIMIT,
     SEARCH_IDLE_STATUS_TEXT,
@@ -68,7 +67,7 @@ export interface SearchController {
     isFavoriteChannel: (channelId: string) => boolean;
     toggleFavorite: (channel: SearchChannelResult) => void;
     removeFavorite: (channelId: string) => void;
-    openFavoriteInExternalBrowser: (favorite: FavoriteChannel) => void;
+    openFavorite: (favorite: FavoriteChannel) => void;
     goHomeAndRefresh: () => Promise<void>;
 }
 
@@ -231,28 +230,8 @@ export function createSearchController(dependencies: SearchControllerDependencie
         requestPlayback(video);
     };
 
-    const openChannelWithIdentityInExternalBrowser = (channelId: string, channelHandle?: string): void => {
-        const handle = normalizeChannelHandle(channelHandle ?? "");
-        const url = handle
-            ? `https://www.youtube.com/${handle}`
-            : `https://www.youtube.com/channel/${encodeURIComponent(channelId)}`;
-
-        if (!state.iinaApi || typeof state.iinaApi.postMessage !== "function") {
-            if (typeof window !== "undefined" && typeof window.open === "function") {
-                window.open(url, "_blank", "noopener,noreferrer");
-            }
-            return;
-        }
-
-        state.iinaApi.postMessage(MESSAGE_NAMES.OpenExternalUrl, { url });
-    };
-
-    const openChannelInExternalBrowser = (channel: SearchChannelResult): void => {
-        openChannelWithIdentityInExternalBrowser(channel.channelId, channel.channelHandle);
-    };
-
-    const openFavoriteInExternalBrowser = (favorite: FavoriteChannel): void => {
-        openChannelWithIdentityInExternalBrowser(favorite.channelId, favorite.channelHandle);
+    const openChannel = (channel: SearchChannelResult | FavoriteChannel): void => {
+        document.dispatchEvent(new CustomEvent("youtube-open-channel", {detail: channel}));
     };
 
     const addFavorite = (channel: SearchChannelResult): void => {
@@ -325,7 +304,7 @@ export function createSearchController(dependencies: SearchControllerDependencie
                 videosEmptyState
             },
             onUpdateLoadingIndicators: dependencies.updateActiveViewLoadingIndicators,
-            onOpenChannel: openChannelInExternalBrowser,
+            onOpenChannel: openChannel,
             onToggleFavorite: toggleFavorite,
             isFavoriteChannel,
             onPlayVideo: playVideo,
@@ -461,7 +440,7 @@ export function createSearchController(dependencies: SearchControllerDependencie
         isFavoriteChannel,
         toggleFavorite,
         removeFavorite,
-        openFavoriteInExternalBrowser,
+        openFavorite: openChannel,
         goHomeAndRefresh
     };
 }

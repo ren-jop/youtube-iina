@@ -96,7 +96,7 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
             const result = await fetchChannelFeedFromInnertube(channelId);
             return {
                 channelId,
-                items: result.items.map(item => ({ ...item, channelTitle: !item.channelTitle || item.channelTitle === "Unknown channel"
+                items: result.items.map(item => ({ ...item, channelId: item.channelId || channelId, channelTitle: !item.channelTitle || item.channelTitle === "Unknown channel"
                     ? state.favorites.find(channel => channel.channelId === channelId)?.title || item.channelTitle : item.channelTitle })),
                 hadError: Boolean(result.failureReason),
                 failureReason: result.failureReason,

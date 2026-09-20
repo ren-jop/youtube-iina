@@ -40,15 +40,11 @@ export function createChannelMetaLine(dependencies: ChannelMetaLineDependencies)
     meta.className = "yt-item-meta";
 
     const handle = normalizeChannelHandle(channelHandle ?? "");
-    if (!handle) {
-        meta.textContent = channelId;
-        return meta;
-    }
 
     const handleLink = document.createElement("a");
     handleLink.href = `https://www.youtube.com/${handle}`;
     handleLink.className = "yt-channel-handle-link";
-    handleLink.textContent = handle;
+    handleLink.textContent = handle || "View channel";
     handleLink.target = "_blank";
     handleLink.rel = "noopener noreferrer";
     handleLink.addEventListener("click", (event) => {
@@ -177,6 +173,7 @@ export interface PlayableVideoItemPresentation {
 
 export interface PlayableVideoListItemDependencies {
     videoId?: string;
+    channelId?: string;
     onChannelResolved?: (name: string) => void;
     title: string;
     presentation: PlayableVideoItemPresentation;
@@ -218,7 +215,13 @@ export function createPlayableVideoListItem(dependencies: PlayableVideoListItemD
     titleElement.className = "yt-item-title yt-item-title-video";
     titleElement.textContent = safeTitle;
 
-    const channel = document.createElement("p");
+    const channel = document.createElement("button");
+    channel.type = "button";
+    channel.title = "View channel";
+    channel.addEventListener("click", event => {
+        event.stopPropagation();
+        document.dispatchEvent(new CustomEvent("youtube-open-channel", { detail: { channelId: dependencies.channelId, videoId: dependencies.videoId, title: channel.textContent || "Channel" } }));
+    });
     channel.className = "yt-item-meta yt-item-channel";
     channel.textContent = safeChannelLine;
     if (safeChannelLine === "Unknown channel" && dependencies.videoId) {
@@ -307,6 +310,7 @@ export function renderPlayableVideoList(dependencies: RenderPlayableVideoListDep
         const presentation = resolveItemPresentation(itemData);
         const item = createPlayableVideoListItem({
             videoId: itemData.videoId,
+            channelId: itemData.channelId,
             onChannelResolved: name => { itemData.channelTitle = name; },
             title: presentation.title,
             presentation,

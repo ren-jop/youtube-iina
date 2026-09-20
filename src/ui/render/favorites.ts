@@ -46,7 +46,9 @@ export function renderFavorites(dependencies: FavoritesRenderDependencies): void
         const content = document.createElement("div");
         content.className = "yt-item-content";
 
-        const title = document.createElement("p");
+        const title = document.createElement("button");
+            title.type = "button";
+            title.addEventListener("click", () => onOpenChannel(favorite));
         title.className = "yt-item-title yt-item-title-channel";
         title.textContent = favorite.title;
 

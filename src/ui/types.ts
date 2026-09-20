@@ -1,4 +1,4 @@
-export type ViewName = "feed" | "subscriptions" | "search" | "favorites" | "related" | "history" | "comments" | "chat";
+export type ViewName = "feed" | "subscriptions" | "search" | "favorites" | "related" | "history" | "comments" | "chat" | "channel";
 export type AppMode = "anonymous" | "logged_in";
 
 export interface UiFeatureFlags {
@@ -37,6 +37,7 @@ export interface InnertubeCommand {
 }
 
 export interface SearchVideoResult {
+    channelId?: string;
     viewCountText?: string;
     durationLabel?: string;
     videoId: string;
@@ -98,6 +99,7 @@ export interface SearchState {
 }
 
 export interface FeedVideoItem {
+    channelId?: string;
     videoId: string;
     title: string;
     published: string;

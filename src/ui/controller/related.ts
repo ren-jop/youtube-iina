@@ -1,4 +1,6 @@
-import { selectedVideoTitle } from "./playerUi";
+import { loadChannelVideos } from "../innertube/channels";
+import { filterReason } from "../storage/feedFilters";
+import { selectedVideo, selectedVideoTitle } from "./playerUi";
 import type { PlaybackLifecycleEventPayload } from "../../shared/messages";
 import {
     RELATED_EMPTY_TEXT,
@@ -11,7 +13,6 @@ import {
     relatedStatus
 } from "../dom";
 import {
-    describeFeedFetchFailure,
     fetchRelatedFeed
 } from "../innertube/feedBrowse";
 import { renderRelated as renderRelatedView } from "../render/related";
@@ -57,60 +58,45 @@ export function createRelatedController(dependencies: RelatedControllerDependenc
         });
     };
 
+    let displayedVideoId = "";
     const refreshRelated = async (): Promise<void> => {
         if (state.relatedState.isLoading) return;
-        const playbackVideoId = state.currentPlaybackVideoId.trim();
+        const videoId = state.currentPlaybackVideoId.trim();
         const refreshId = ++state.relatedRefreshSequence;
-        const sourceTitle = [...state.feedState.items, ...state.searchState.videos, ...state.relatedState.items, ...state.subscriptionsState.items].find(item => item.videoId === playbackVideoId)?.title || selectedVideoTitle(playbackVideoId);
-
-        if (!playbackVideoId) {
-            state.relatedState.items = [];
-            state.relatedState.isLoading = false;
-            state.relatedState.warning = "";
-            state.relatedState.status = RELATED_IDLE_TEXT;
-            renderRelated();
-            return;
+        const source = [...state.feedState.items, ...state.searchState.videos, ...state.relatedState.items, ...state.subscriptionsState.items].find(item => item.videoId === videoId) || selectedVideo(videoId);
+        if (!videoId) {
+            state.relatedState.items = []; state.relatedState.status = RELATED_IDLE_TEXT; renderRelated(); return;
         }
-
+        if (displayedVideoId !== videoId) state.relatedState.items = [];
+        displayedVideoId = videoId;
         state.relatedState.isLoading = true;
-        state.relatedState.warning = "";
-        state.relatedState.status = "";
+        state.relatedState.warning = ""; state.relatedState.status = "";
         renderRelated();
-
-        try {
-            const relatedResult = await fetchRelatedFeed(playbackVideoId, sourceTitle);
-
-            const withoutCurrentVideo = relatedResult.items.filter((item) => item.videoId !== playbackVideoId);
-            const items = await dependencies.buildFinalFilteredFeedItems(withoutCurrentVideo, RELATED_ITEMS_LIMIT);
-            if (refreshId !== state.relatedRefreshSequence) {
-                return;
-            }
-
-            state.relatedState.isLoading = false;
-            if (items.length || !relatedResult.failureReason) state.relatedState.items = items;
-            state.relatedState.warning = relatedResult.notice || "";
-            if (relatedResult.failureReason) {
-                const statusCodeSuffix = Number.isFinite(relatedResult.statusCode)
-                    ? ` (HTTP ${relatedResult.statusCode})`
-                    : "";
-                state.relatedState.status = `Could not load related videos: ${describeFeedFetchFailure(relatedResult.failureReason, "Request failed.")}${statusCodeSuffix}`;
-            } else if (relatedResult.items.length > 0 && items.length === 0) {
-                state.relatedState.status = "No playable related videos available.";
-            } else {
-                state.relatedState.status = items.length > 0 ? "" : RELATED_EMPTY_TEXT;
-            }
-
+        let channelAdded = false, relatedAdded = false;
+        let channelItems: FeedVideoItem[] = [];
+        const accept = async (incoming: FeedVideoItem[], fromChannel: boolean, limit = RELATED_ITEMS_LIMIT): Promise<void> => {
+            const filtered = incoming.filter(item => item.videoId !== videoId && !filterReason({...item, durationLabel: dependencies.resolveFeedItemPresentation(item).durationLabel}));
+            const items = await dependencies.buildFinalFilteredFeedItems(filtered, limit);
+            if (refreshId !== state.relatedRefreshSequence) return;
+            if (fromChannel) channelAdded = items.length > 0; else relatedAdded = items.length > 0;
+            // Append late arrivals so the video under the pointer never changes.
+            const merged = new Map(state.relatedState.items.map(item => [item.videoId, item]));
+            items.forEach(item => merged.set(item.videoId, item));
+            state.relatedState.items = [...merged.values()].slice(0, RELATED_ITEMS_LIMIT);
+            state.relatedState.warning = channelAdded ? (relatedAdded ? "Related videos and more from this channel." : "More from this channel.") : "";
             renderRelated();
-        } catch (error) {
-            if (refreshId !== state.relatedRefreshSequence) {
-                return;
-            }
-
-            state.relatedState.isLoading = false;
-            state.relatedState.warning = "";
-            state.relatedState.status = `Could not load related videos: ${error instanceof Error ? error.message : String(error)}`;
-            renderRelated();
-        }
+        };
+        // Channel uploads can appear while YouTube's slower Related/search request runs.
+        await Promise.all([
+            fetchRelatedFeed(videoId, source?.title || selectedVideoTitle(videoId)).then(result => accept(result.items, false)).catch(() => {}),
+            loadChannelVideos({channelId: source?.channelId, videoId, title: source?.channelTitle}).then(result => { channelItems = result.items; return accept(channelItems, true, 8); }).catch(() => {})
+        ]);
+        if (refreshId !== state.relatedRefreshSequence) return;
+        if (!relatedAdded && channelItems.length) await accept(channelItems, true);
+        if (refreshId !== state.relatedRefreshSequence) return;
+        state.relatedState.isLoading = false;
+        state.relatedState.status = state.relatedState.items.length ? "" : "No videos available from Related or this channel. Try again, or check your filters.";
+        renderRelated();
     };
 
     const handlePlaybackLifecycleEvent = (payload: PlaybackLifecycleEventPayload): void => {

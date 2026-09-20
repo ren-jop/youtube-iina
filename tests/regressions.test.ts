@@ -413,3 +413,63 @@ test('Related recovers an empty selected chip through topic search and shares ca
     await fetchRelatedFeed('rustsource1','Rust programming');
     expect(calls).toBe(2);
 });
+
+test('video author IDs survive classic and modern parsing without unrelated endpoints', async () => {
+    const { parseSearchResponse } = await import('../src/ui/parsers/search');
+    const { readVideoChannelId } = await import('../src/ui/parsers/channelIdentity');
+    const channelId = 'UC' + 'i'.repeat(22);
+    const renderer = {...video().videoRenderer, longBylineText: {runs: [{text: 'Creator', navigationEndpoint: {browseEndpoint: {browseId: channelId}}}]}};
+    expect(parseFeedItemsFromBrowseResponse({videoRenderer: renderer}).items[0].channelId).toBe(channelId);
+    expect(parseSearchResponse({contents: [{videoRenderer: renderer}]}).videos[0].channelId).toBe(channelId);
+    expect(readVideoChannelId({metadata:{lockupMetadataViewModel:{metadata:{contentMetadataViewModel:{metadataRows:[{metadataParts:[{text:{commandRuns:[{onTap:{innertubeCommand:{browseEndpoint:{browseId:channelId}}}}]}}]}]}}}}})).toBe(channelId);
+    expect(readVideoChannelId({relatedChannel: {browseId: channelId}})).toBeUndefined();
+});
+
+test('channel browsing shares one request and preserves attribution, views and publication', async () => {
+    const { loadChannelVideos } = await import('../src/ui/innertube/channels');
+    const channelId = 'UC' + 'c'.repeat(22);
+    let calls = 0;
+    respond = request => {
+        calls++;
+        expect(request.body.browseId).toBe(channelId);
+        return {statusCode: 200, text: JSON.stringify({contents: [{videoRenderer: {...video().videoRenderer, viewCountText: {simpleText: '12K views'}, publishedTimeText: {simpleText:'2 days ago'}}}]})};
+    };
+    const source = {channelId, title: 'Creator'};
+    const [first, second] = await Promise.all([loadChannelVideos(source), loadChannelVideos(source)]);
+    expect(first).toBe(second);
+    expect(first.items[0]).toMatchObject({channelId, channelTitle:'Creator', viewCountText:'12K views', published:'2 days ago'});
+    expect(await loadChannelVideos(source)).toBe(first);
+    expect(calls).toBe(1);
+});
+
+test('unknown channel links resolve once and reject non-YouTube author URLs', async () => {
+    const { loadChannelVideos } = await import('../src/ui/innertube/channels');
+    const channelId = 'UC' + 'u'.repeat(22);
+    const calls: string[] = [];
+    respond = request => {
+        calls.push(request.url);
+        if (request.url.includes('/oembed')) return {statusCode:200,text:JSON.stringify({author_name:'Resolved',author_url:'https://www.youtube.com/@resolved'})};
+        if (request.url.includes('/navigation/resolve_url')) return {statusCode:200,text:JSON.stringify({endpoint:{browseEndpoint:{browseId:channelId}}})};
+        return {statusCode:200,text:JSON.stringify(video())};
+    };
+    const [first, second] = await Promise.all([loadChannelVideos({videoId:'identity001'}),loadChannelVideos({videoId:'identity001'})]);
+    expect(first).toBe(second); expect(first.channelId).toBe(channelId); expect(calls).toHaveLength(3);
+    respond = () => ({statusCode:200,text:JSON.stringify({author_url:'https://example.com/@untrusted'})});
+    await expect(loadChannelVideos({videoId:'badhost0001'})).rejects.toThrow('Channel link unavailable');
+});
+
+test('Related uses channel uploads when YouTube next fails and excludes the playing video', async () => {
+    const { state } = await import('../src/ui/state');
+    const { createRelatedController } = await import('../src/ui/controller/related');
+    const channelId = 'UC' + 'r'.repeat(22);
+    state.currentPlaybackVideoId = 'related0001';
+    state.feedState.items = [{videoId:'related0001',title:'Lecture',channelTitle:'Teacher',channelId,published:'',thumbnailUrl:''}];
+    state.relatedState.isLoading = false;
+    respond = request => request.url.includes('/next') ? {statusCode:503,text:'{}'} : {statusCode:200,text:JSON.stringify({contents:[video('Another lecture'),{videoRenderer:{...video().videoRenderer,videoId:'related0001',navigationEndpoint:{watchEndpoint:{videoId:'related0001'}}}}]})};
+    const controller = createRelatedController({updateActiveViewLoadingIndicators(){},playFeedItem(){},renderModeTabs(){},resolveFeedItemPresentation:item=>({title:item.title,channelLine:item.channelTitle,thumbnailUrl:'',durationLabel:'',statsLine:''}),buildFinalFilteredFeedItems:async items=>items});
+    await controller.refreshRelated();
+    expect(state.relatedState.items.map(item=>item.videoId)).toEqual([videoId]);
+    expect(state.relatedState.warning).toBe('More from this channel.');
+    expect(state.relatedState.status).toBe('');
+    expect(state.relatedState.isLoading).toBe(false);
+});

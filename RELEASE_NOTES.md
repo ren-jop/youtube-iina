@@ -1,15 +1,16 @@
-# YouTube for IINA 1.2.10
+# YouTube for IINA 1.2.11
 
-This pass prioritizes simple browsing and playback recovery.
+Channel browsing stays inside IINA, with the same minimal sidebar UI.
 
-- Keeps the native playlist-switch path from 1.2.6. Recovers idle players that still report stale playlist entries; an optional quality-setting failure no longer prevents opening a video.
-- Repeated clicks no longer restart the same pending video. Discussion polling stops immediately when another video is selected. Loading/slow/error feedback stays inside the selected card, with retry available after 30 seconds and timing diagnostics. No automatic reload loop or video overlay.
-- Defaults to 1080p with an H.264 preference instead of unlimited highest quality. Existing 720p settings remain; highest available can still be selected explicitly. This reduces potential decode load, not network or yt-dlp extraction time.
-- Removed Wireframe and its selector. Restored always-visible statistics, preserved views through search parsing, and fixed Japanese view-count/publication labels being discarded. Missing values are not invented.
-- Added optional Academic focus, compatible with Japanese mode. Uses local title rules to exclude obvious gaming/entertainment formats while keeping uncertain titles and educational analysis. No extra API calls, strict subject whitelist, difficulty ratings or credibility claims.
+- Click a video's channel name or a channel in Search/Channels to see its latest uploads in the sidebar. Back returns to the previous view and its scroll position, without starting playback.
+- Related also loads the current channel's uploads. These can appear while slower recommendations/search are still running. Topic matches have reserved space; if none arrive, more channel uploads fill the list. The playing video and duplicate videos are excluded.
+- Channel browsing and Related share a bounded three-minute cache and concurrent requests. One page of channel uploads is fetched, without waiting for additional pages. Late results append instead of moving the card under the pointer.
+- Channel IDs now survive classic/modern parsing and search conversion. When missing, an explicit channel visit can resolve the video's author. Missing channel labels on that channel's own uploads use its known name.
+- Views and publication text remain below the channel name and wrap instead of clipping. Actual dates are preserved when YouTube supplies them; relative ages stay relative. Missing values are not invented, and cards do not wait for individual metadata requests.
+- Japanese, Academic focus, hidden-channel and other local filters also apply to channel uploads and the Related fallback. Existing playback switching behavior is preserved.
 
-Validation: 67 regression tests, TypeScript checks, manifest verification, production builds and headless browser interaction checks. Tests cover idle recovery, quality-option failures, pending-selection deduplication, visible search/feed statistics, Japanese metadata, removed theme controls, and Academic/Japanese coexistence.
+Validation: 72 automated tests, TypeScript checks, manifest verification, production builds, and headless browser checks covering channel navigation, cache reuse, non-playing channel clicks, early channel fallback, stable late results, visible statistics, and the existing UI flows.
 
-Native macOS playback and current YouTube/yt-dlp performance could not be exercised here. The original playback failure is not fully reproduced, so this release does not claim every loading problem is resolved. If videos still fail, the new playback timing diagnostics and IINA's online-media/yt-dlp log are needed to locate the remaining failure.
+Related can still be empty when both YouTube requests fail, a channel has no other public videos, or your filters exclude every result. Native macOS/IINA playback and live YouTube response performance could not be tested in this environment.
 
-Install the `.iinaplgz` and fully restart IINA. Academic focus is in Settings & data and defaults off.
+Install the `.iinaplgz` asset and fully restart IINA.

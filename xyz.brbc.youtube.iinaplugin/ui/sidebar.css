@@ -715,3 +715,13 @@ body {
 .yt-compact .yt-item-thumb-wrapper { max-width: 120px; }
 .yt-compact .yt-item { gap: 10px; padding-top: 6px; padding-bottom: 6px; }
 .yt-hide-stats .yt-item-stats { display: none; }
+
+/* Attribution stays in the sidebar; both metadata fields remain readable. */
+.yt-item button.yt-item-channel, button.yt-item-title-channel {
+    display: block; padding: 0; border: 0; background: none; color: inherit;
+    text-align: left; font: inherit; cursor: pointer; max-width: 100%;
+}
+.yt-item button.yt-item-channel { color: var(--yt-text-secondary, #aaa); font-size: 12px; }
+.yt-item button.yt-item-channel:hover, button.yt-item-title-channel:hover { text-decoration: underline; }
+.yt-view .yt-item .yt-item-stats { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.5; }
+[data-channel-title] { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

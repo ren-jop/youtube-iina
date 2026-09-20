@@ -3,6 +3,7 @@ import type { FeedVideoItem, SearchVideoResult } from "../types";
 export function mapSearchVideosToFeedItems(videos: SearchVideoResult[]): FeedVideoItem[] {
     return videos.map((video) => ({
         videoId: video.videoId,
+        channelId: video.channelId,
         title: video.title,
         published: video.publishedText,
         channelTitle: video.channelTitle,

@@ -135,6 +135,12 @@
                 <ul data-discussion-list></ul>
                 <button type="button" data-discussion-more hidden>Load more</button>
             </section>
+            <section class="yt-view" data-view="channel">
+                <div class="yt-discussion-toolbar"><button type="button" data-channel-back>Back</button><span data-channel-title>Channel</span></div>
+                <p class="yt-empty" data-channel-status role="status"></p>
+                <p class="yt-empty" data-channel-empty hidden></p>
+                <ul class="yt-list" data-channel-list></ul>
+            </section>
         </main>
 
         <details class="yt-diagnostics yt-library" data-library>
@@ -165,8 +171,8 @@
             </label>
             <label>Related videos
                 <select data-option="relatedMode">
-                    <option value="topic">Related + topic search</option>
-                    <option value="strict">YouTube Related filter only</option>
+                    <option value="topic">Related + topic search + same channel</option>
+                    <option value="strict">YouTube Related + same channel</option>
                 </select>
             </label>
             <p>Topic matching is conservative and may miss relevant videos. For window resizing between videos, check IINA’s “Resize window to fit video size” setting.</p>

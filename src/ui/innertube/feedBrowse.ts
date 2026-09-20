@@ -403,7 +403,7 @@ export async function fetchRelatedFeed(videoId: string, title = ""): Promise<Fee
     return request;
 }
 
-export async function fetchChannelFeedFromInnertube(channelId: string): Promise<FeedFetchResult> {
+export async function fetchChannelFeedFromInnertube(channelId: string, limit = FEED_ITEMS_PER_CHANNEL, maxPages = CHANNEL_BROWSE_MAX_PAGES): Promise<FeedFetchResult> {
     let config: Awaited<ReturnType<typeof getInnertubeConfig>>;
     try {
         config = await getInnertubeConfig();
@@ -469,11 +469,11 @@ export async function fetchChannelFeedFromInnertube(channelId: string): Promise<
                     };
                 }
             },
-            CHANNEL_PREFETCH_TARGET,
-            CHANNEL_BROWSE_MAX_PAGES
+            Math.max(CHANNEL_PREFETCH_TARGET, limit),
+            maxPages
         );
 
-        const slicedItems = parsed.items.slice(0, FEED_ITEMS_PER_CHANNEL);
+        const slicedItems = parsed.items.slice(0, limit);
         if (slicedItems.length > 0) {
             return {
                 ...parsed,

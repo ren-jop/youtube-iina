@@ -113,3 +113,5 @@ button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible,.
 .yt-suggested-channel button { flex-shrink:0; }
 [data-japanese-topics] { display:flex; flex-wrap:wrap; gap:6px; padding:4px 8px 8px; }
 .yt-item .yt-play-overlay { display:none; }
+
+[data-channel-back] { background:transparent; color:#ccc; border:1px solid var(--line); border-radius:2px; padding:5px 8px; font-size:11px; }

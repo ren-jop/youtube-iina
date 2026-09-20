@@ -1,4 +1,5 @@
-import { playbackStatus } from "./playerUi";
+import { initializeChannelView } from "./channel";
+import { playbackStatus, selectedVideo } from "./playerUi";
 import { initializeDiscovery } from "./discovery";
 import { createDiscussionController } from "./discussion";
 import { renderHistory, initializePolish } from "./polish";
@@ -53,6 +54,8 @@ export function initializeSidebar(): void {
         }
     });
 
+    initializeChannelView(navigationController, feedController.playFeedItem, feedController.resolveFeedItemPresentation);
+
     const subscriptionsController = createSubscriptionsController({
         updateActiveViewLoadingIndicators: navigationController.updateActiveViewLoadingIndicators,
         playFeedItem: feedController.playFeedItem,
@@ -74,7 +77,7 @@ export function initializeSidebar(): void {
                 searchController?.removeFavorite(channelId);
             },
             onOpenChannel: (favorite) => {
-                searchController?.openFavoriteInExternalBrowser(favorite);
+                searchController?.openFavorite(favorite);
             }
         });
     };
@@ -137,7 +140,7 @@ export function initializeSidebar(): void {
             if (payload.event === "file-loaded") discussionController.update();
             else discussionController.suspend();
             if (payload.event === "file-loaded" && payload.videoId) {
-                const item = [...state.feedState.items, ...state.searchState.videos, ...state.relatedState.items, ...state.subscriptionsState.items].find(item => item.videoId === payload.videoId);
+                const item = [...state.feedState.items, ...state.searchState.videos, ...state.relatedState.items, ...state.subscriptionsState.items].find(item => item.videoId === payload.videoId) || selectedVideo(payload.videoId);
                 try { recordPlayedVideo({ videoId: payload.videoId, title: item?.title || "", channelTitle: item?.channelTitle || "" }); }
                 catch { recordDiagnostic("Could not save local viewing history"); }
                 renderHistory(feedController.playFeedItem);
