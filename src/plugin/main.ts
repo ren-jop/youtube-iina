@@ -137,7 +137,7 @@ event.on("iina.window-loaded", () => {
         windowClosed = false;
         const path = String(core.status.url || "");
         if (switchStartedAt && path.includes(switchVideoId)) {
-            sidebar.postMessage("playbackSwitchStatus", { stage: "loaded", elapsedMs: Date.now() - switchStartedAt });
+            sidebar.postMessage("playbackSwitchStatus", { stage: "loaded", videoId: switchVideoId, elapsedMs: Date.now() - switchStartedAt });
             switchStartedAt = 0;
         }
         if (isSplashPath(path)) sponsorBlockController?.stop();
@@ -177,6 +177,7 @@ event.on("iina.window-loaded", () => {
         }
 
         if (!/^[A-Za-z0-9_-]{11}$/.test(data.videoId || "")) return;
+        if (switchStartedAt && switchVideoId === data.videoId && Date.now() - switchStartedAt < 30000) return;
         if (playTimer !== null) clearTimeout(playTimer);
         // Coalesce double clicks and rapid selections: only the latest starts.
         playTimer = setTimeout(() => {
@@ -187,10 +188,10 @@ event.on("iina.window-loaded", () => {
             try {
                 sponsorBlockController?.stop();
                 if (!handlePlayItem(data)) throw new Error("Player rejected selection");
-                sidebar.postMessage("playbackSwitchStatus", { stage: "loading" });
+                sidebar.postMessage("playbackSwitchStatus", { stage: "loading", videoId: switchVideoId });
             } catch {
                 switchStartedAt = 0;
-                sidebar.postMessage("playbackSwitchStatus", { stage: "failed" });
+                sidebar.postMessage("playbackSwitchStatus", { stage: "failed", videoId: switchVideoId });
             }
         }, 180);
 

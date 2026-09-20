@@ -37,6 +37,7 @@ export interface InnertubeCommand {
 }
 
 export interface SearchVideoResult {
+    viewCountText?: string;
     durationLabel?: string;
     videoId: string;
     title: string;

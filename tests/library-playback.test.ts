@@ -110,3 +110,13 @@ test('rapid selections coalesce and closing cancels a pending switch',async()=>{
     const previousCommands=commands.length; handlers.togglePlayback({});
     expect(commands.length).toBe(previousCommands);
 });
+
+test('idle player with a stale playlist recovers through native open',()=>{
+ let opened=''; globalThis.iina={core:{status:{idle:true},open:(url:string)=>opened=url},playlist:{count:()=>2,add:()=>{throw Error('idle playlist unavailable');}},mpv:{set(){}}} as any;
+ expect(handlePlayItem({videoId:'abcdefghijk',url:'',quality:'1080'})).toBe(true);
+ expect(opened).toBe('https://www.youtube.com/watch?v=abcdefghijk');
+});
+test('optional quality errors do not block same-window playback',()=>{
+ let played=-1;globalThis.iina={console:{warn(){}},core:{status:{idle:false}},playlist:{count:()=>1,add:()=>true,play:(index:number)=>played=index},mpv:{set(){throw Error('unsupported option');},command(){}}} as any;
+ expect(handlePlayItem({videoId:'abcdefghijk',url:'',quality:'1080'})).toBe(true);expect(played).toBe(0);
+});

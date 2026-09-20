@@ -114,7 +114,7 @@ export interface UiToPluginMessagePayloads {
 export interface PluginToUiMessagePayloads {
     discussionVisibility: boolean;
     libraryTransferResult: string;
-    playbackSwitchStatus: { stage: string; elapsedMs?: number };
+    playbackSwitchStatus: { stage: string; videoId?: string; elapsedMs?: number };
     httpResponse: HttpResponsePayload | HttpResponseWirePayload;
     httpProgress: HttpProgressPayload;
     reportWatchStatusResponse: ReportWatchStatusResponsePayload;

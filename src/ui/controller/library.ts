@@ -4,10 +4,10 @@ import { exportBackup, exportSubscriptionsCsv, loadLibraryData, saveLibraryData,
 
 export function applyLocalAppearance(): void {
     const options=loadLibraryData().options;
-    document.body.dataset.theme = options.theme;
+    delete document.body.dataset.theme;
     document.body.style.setProperty("--surface-opacity", String(options.opacity / 100));
     document.body.classList.toggle("yt-compact",options.compactCards);
-    document.body.classList.toggle("yt-hide-stats",!options.showStats);
+    document.body.classList.remove("yt-hide-stats");
 }
 export function initializeLibrary(onImported: () => void): void {
     const panel=document.querySelector<HTMLElement>("[data-library]");
@@ -29,8 +29,8 @@ export function initializeLibrary(onImported: () => void): void {
             try {
                 const data=loadLibraryData();
                 const key=input.dataset.option as keyof LocalOptions;
-                if(key==='theme') data.options.theme=input.value==='wireframe'?'wireframe':'dark';
-                else if(key==='opacity') data.options.opacity=[60,75,90,100].includes(Number(input.value))?Number(input.value):90;
+                if(key==='opacity') data.options.opacity=[60,75,90,100].includes(Number(input.value))?Number(input.value):90;
+                else if(key==='performanceVersion') return;
                 else if(key==='minimumMinutes') data.options.minimumMinutes=[0,3,5,10].includes(Number(input.value))?Number(input.value):0;
                 else if(key==='hiddenChannels'||key==='excludedWords') return;
                 else if(key==='relatedMode') data.options.relatedMode=input.value==='strict'?'strict':'topic';

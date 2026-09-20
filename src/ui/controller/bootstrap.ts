@@ -1,3 +1,4 @@
+import { playbackStatus } from "./playerUi";
 import { initializeDiscovery } from "./discovery";
 import { createDiscussionController } from "./discussion";
 import { renderHistory, initializePolish } from "./polish";
@@ -22,6 +23,7 @@ import { createSubscriptionsController } from "./subscriptions";
 export function initializeSidebar(): void {
     initializeDiagnostics();
     state.iinaApi?.onMessage("playbackSwitchStatus", payload => {
+        playbackStatus(payload.stage, payload.videoId);
         recordDiagnostic(`Playback ${payload.stage}${Number.isFinite(payload.elapsedMs) ? ` in ${payload.elapsedMs}ms` : ""}`);
         if (payload.stage === "failed") {
             const status = document.querySelector<HTMLElement>("[data-library-status]");

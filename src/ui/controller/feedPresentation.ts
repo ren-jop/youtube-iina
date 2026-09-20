@@ -154,7 +154,7 @@ function formatDuration(durationSeconds: number): string {
 
 function buildFeedStatsLine(item: FeedVideoItem, metadata: VideoMetadata | null): string {
     const views = formatHumanReadableViews(metadata?.viewCountText || item.viewCountText || "");
-    const age = formatRelativeAge(item.published) || formatPublishedText(item.published);
+    const age = formatRelativeAge(item.published) || formatPublishedText(item.published) || item.published.trim();
 
     return [views, age]
         .map((value) => value.trim())
@@ -163,7 +163,7 @@ function buildFeedStatsLine(item: FeedVideoItem, metadata: VideoMetadata | null)
 }
 
 function buildSearchVideoStatsLine(video: SearchVideoResult, metadata: VideoMetadata | null): string {
-    const views = formatHumanReadableViews(metadata?.viewCountText || "");
+    const views = formatHumanReadableViews(metadata?.viewCountText || video.viewCountText || "");
     const age = formatRelativeAge(video.publishedText) || formatPublishedText(video.publishedText) || video.publishedText.trim();
 
     return [views, age]

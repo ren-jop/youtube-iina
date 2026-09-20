@@ -30,8 +30,10 @@ test("local quality rules are optional and do not judge unknown durations or pop
  expect(filterReason({...video,title:"数学の解説"},{...defaultOptions,excludedWords:["数学"]})).toBe("Excluded title phrase");
 });
 test("new appearance and discovery settings validate old and imported backups", () => {
- expect(normalizeOptions({theme:"bad",opacity:-1,hiddenChannels:["a",null,"a"],minimumMinutes:500})).toMatchObject({theme:"dark",opacity:90,hiddenChannels:["a"],minimumMinutes:0,japaneseMode:false});
- expect(normalizeOptions({...defaultOptions,theme:"wireframe",japaneseMode:true,opacity:60})).toMatchObject({theme:"wireframe",japaneseMode:true,opacity:60});
+ expect(normalizeOptions({theme:"bad",opacity:-1,hiddenChannels:["a",null,"a"],minimumMinutes:500})).toMatchObject({opacity:90,hiddenChannels:["a"],minimumMinutes:0,japaneseMode:false});
+ expect(normalizeOptions({...defaultOptions,theme:"wireframe",japaneseMode:true,opacity:60})).toMatchObject({japaneseMode:true,opacity:60});
+ expect(normalizeOptions({theme:"wireframe",showStats:false,playbackQuality:"auto"})).toMatchObject({showStats:true,playbackQuality:"1080"});
+ expect(normalizeOptions({theme:"wireframe"})).not.toHaveProperty("theme");
 });
 
 test("strict Japanese discovery excludes English, Chinese and ambiguous titles", async () => {
@@ -41,4 +43,27 @@ test("strict Japanese discovery excludes English, Chinese and ambiguous titles",
  expect(filterReason({title:"Learn guitar",channelTitle:"Channel"},{...defaultOptions,japaneseMode:true})).toBe("Not a Japanese title");
  expect(parseJapaneseTranslation({responseStatus:200,responseData:{translatedText:"ギターの練習"}})).toBe("ギターの練習");
  expect(()=>parseJapaneseTranslation({responseStatus:429,responseData:{translatedText:"quota exceeded"}})).toThrow();
+});
+
+test("academic mode excludes obvious entertainment but keeps useful and uncertain topics", () => {
+ const options={...defaultOptions,academicMode:true};
+ for(const title of ["Minecraft survival day 2","Fortnite gameplay","Official music video","Match highlights","Prank compilation"])
+   expect(filterReason({title,channelTitle:"Channel"},options)).toBe("Academic focus");
+ for(const title of ["Minecraft as an educational tool: research","Game theory lecture","Chemical reaction tutorial","Sports science explained","Guitar lesson","Economics","Interview with a researcher","An unusual idea"])
+   expect(filterReason({title,channelTitle:"Channel"},options)).toBe("");
+ const both={...options,japaneseMode:true};
+ expect(filterReason({title:"科学の解説",channelTitle:"Channel"},both)).toBe("");
+ expect(filterReason({title:"マイクラでゲーム実況",channelTitle:"Channel"},both)).toBe("Academic focus");
+ expect(filterReason({title:"Science explained",channelTitle:"Channel"},both)).toBe("Not a Japanese title");
+});
+
+test("search and modern Japanese cards preserve views and publication labels", async () => {
+ const { parseSearchResponse }=await import("../src/ui/parsers/search");
+ const { resolveSearchVideoPresentation, resolveFeedItemPresentation }=await import("../src/ui/controller/feedPresentation");
+ const { readLockupMetadata }=await import("../src/ui/parsers/lockupMetadata");
+ const parsed=parseSearchResponse({videoRenderer:{videoId:"abcdefghijk",title:{simpleText:"学びの動画"},viewCountText:{simpleText:"1.2万回視聴"},publishedTimeText:{simpleText:"2日前"}}}).videos[0];
+ expect(resolveSearchVideoPresentation(parsed,null).statsLine).toBe("1.2万回視聴 • 2日前");
+ const metadata=readLockupMetadata({metadata:{contentMetadataViewModel:{metadataRows:[{metadataParts:[{text:{content:"1.2万回視聴"}},{text:{content:"2日前"}}]}]}}});
+ expect(metadata).toEqual({channel:"",views:"1.2万回視聴",published:"2日前"});
+ expect(resolveFeedItemPresentation({videoId:"abcdefghijk",title:"動画",channelTitle:"",thumbnailUrl:"",published:metadata.published,viewCountText:metadata.views},null).statsLine).toBe("1.2万回視聴 • 2日前");
 });

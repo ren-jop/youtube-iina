@@ -15,7 +15,7 @@ try {
  await page.route('https://**/*',route=>route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><rect width="320" height="180" fill="#253447"/><circle cx="160" cy="90" r="42" fill="#455d78"/></svg>'}));
  await page.addInitScript(()=>{
   const handlers={};window.testHandlers=handlers;window.testPauseCount=0;window.testPlayCount=0;window.testRequests=[];window.testSlow=false;window.testFail=false;
-  const video=(id,title)=>({videoRenderer:{videoId:id,title:{simpleText:title},longBylineText:{simpleText:'Studio Notes'},navigationEndpoint:{watchEndpoint:{videoId:id}},thumbnail:{thumbnails:[{url:`https://i.ytimg.com/vi/${id}/hqdefault.jpg`}]}}});
+  const video=(id,title)=>({videoRenderer:{videoId:id,title:{simpleText:title},viewCountText:{simpleText:'12K views'},publishedTimeText:{simpleText:'2 days ago'},longBylineText:{simpleText:'Studio Notes'},navigationEndpoint:{watchEndpoint:{videoId:id}},thumbnail:{thumbnails:[{url:`https://i.ytimg.com/vi/${id}/hqdefault.jpg`}]}}});
   const videos=Array.from({length:20},(_,i)=>video('video'+String(i).padStart(6,'0'),['Understanding digital addiction','The science of attention','Building a calmer digital life'][i%3]));
   localStorage.setItem('yt-favorites-v1',JSON.stringify([{channelId:'UC'+'a'.repeat(22),title:'Studio Notes',thumbnailUrl:'',addedAt:new Date().toISOString()}]));
   window.iina={onMessage:(name,fn)=>handlers[name]=fn,postMessage:(name,p)=>{
@@ -41,6 +41,8 @@ try {
  await page.goto(`http://127.0.0.1:${server.address().port}/sidebar.html`);
  await page.waitForSelector('[data-feed-favorites] .yt-item');
  assert.equal(await page.locator('[data-feed-favorites] .yt-item').count(),5);
+ assert.match(await page.locator('[data-feed-favorites] .yt-item-stats').first().textContent(),/12K views.*2d ago/);
+ assert.equal(await page.locator('[data-feed-favorites] .yt-item-stats').first().isVisible(),true);
  await page.evaluate(()=>{window.firstCard=document.querySelector('[data-feed-favorites] .yt-item');window.testSlow=true;});
  await page.click('[data-home-refresh]');
  assert.equal(await page.evaluate(()=>window.firstCard===document.querySelector('[data-feed-favorites] .yt-item')),true,'refresh must preserve card DOM');
@@ -50,7 +52,7 @@ try {
  await page.click('[data-home-refresh]');await page.waitForTimeout(300);
  assert.equal(await page.evaluate(()=>window.firstCard===document.querySelector('[data-feed-favorites] .yt-item')),true,'network failure must retain previous feed');
  await page.evaluate(()=>window.testFail=false);
- await page.locator('[data-feed-favorites] .yt-item').first().click();
+ await page.locator('[data-feed-favorites] .yt-item').first().dblclick();
  await page.waitForFunction(()=>document.querySelector('[data-history-list]')?.children.length===1);
  assert.equal(await page.locator('[data-player-bar]').count(),0,'no playback banner');
  await page.locator('[data-feed-favorites] .yt-item').first().focus();
@@ -74,6 +76,7 @@ try {
  assert.equal(await page.locator('[data-search-input]').evaluate(el=>el===document.activeElement),true);
  await page.fill('[data-search-input]','digital addiction');await page.press('[data-search-input]','Enter');
  await page.waitForSelector('[data-videos-list] .yt-item');
+ assert.match(await page.locator('[data-videos-list] .yt-item-stats').first().textContent(),/12K views.*2d ago/);
  await page.evaluate(()=>{window.searchCard=document.querySelector('[data-videos-list] .yt-item');window.testFail=true;});
  await page.fill('[data-search-input]','offline query');await page.press('[data-search-input]','Enter');await page.waitForTimeout(150);
  assert.equal(await page.evaluate(()=>window.searchCard===document.querySelector('[data-videos-list] .yt-item')),true,'failed search must retain usable results');
@@ -108,10 +111,11 @@ try {
  assert.equal(await page.locator('[data-view="comments"] .yt-discussion-entry').count(),0);
  await page.evaluate(()=>window.testSlow=false);
  await page.click('[data-settings-open]');
- await page.selectOption('[data-option="theme"]','wireframe');
+ assert.equal(await page.locator('[data-option="theme"]').count(),0);
+ await page.check('[data-option="academicMode"]');
  await page.selectOption('[data-option="opacity"]','60');
  await page.check('[data-option="japaneseMode"]');
- assert.equal(await page.locator('body').getAttribute('data-theme'),'wireframe');
+ assert.equal(await page.locator('body').getAttribute('data-theme'),null);
  assert.equal(await page.locator('body').evaluate(el=>el.style.getPropertyValue('--surface-opacity')),'0.6');
  await page.click('[data-library] summary');
  await page.fill('[data-search-input]','guitar practice');await page.press('[data-search-input]','Enter');
@@ -127,7 +131,7 @@ try {
  await page.fill('[data-filter-list="hiddenChannels"]','');await page.locator('[data-filter-list="hiddenChannels"]').blur();
  assert.equal(await page.locator('[data-videos-list] .yt-item').count(),2,'unhiding restores results without network requests');
  await page.click('[data-library] summary');
- await page.screenshot({path:'/tmp/iina-wireframe.png'});
+ await page.screenshot({path:'/tmp/iina-simple.png'});
  await page.click('.yt-tab[data-view="feed"]');
  await page.locator('.yt-suggestions summary').click();
  assert.equal(await page.locator('[data-channel-suggestions] button').count(),3);
@@ -143,5 +147,5 @@ try {
  await page.locator('[data-japanese-topics] button').nth(1).click();
  await page.waitForFunction(()=>window.testRequests.filter(r=>r.url.includes('/search')).at(-1)?.body.query==='料理 作り方');
  assert.deepEqual(errors,[]);
- console.log('Browser checks passed: initial feed, refresh DOM retention, playback state, Related search/cache, Recent, search keyboard shortcut, settings, narrow layout, comments/chat, stale-response suppression, polling cancellation, Japanese requests, channel hiding and wireframe appearance.');
+ console.log('Browser checks passed: initial feed, refresh DOM retention, playback state, Related search/cache, Recent, search keyboard shortcut, settings, narrow layout, comments/chat, stale-response suppression, polling cancellation, Japanese requests, channel hiding and simple appearance and academic/Japanese coexistence.');
 } finally {await browser.close();server.close();}
