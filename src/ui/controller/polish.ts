@@ -1,3 +1,4 @@
+import { state } from "../state";
 import { loadLibraryData } from "../storage/libraryData";
 import { renderPlayableVideoList } from "../render/common";
 import type { FeedVideoItem, ViewName } from "../types";
@@ -14,6 +15,13 @@ export function initializePolish(navigate:(view:ViewName)=>void): void {
         const panel=document.querySelector<HTMLDetailsElement>('[data-library]');
         if(panel){panel.open=!panel.open;if(panel.open){panel.scrollIntoView({block:'start'});panel.querySelector<HTMLElement>('summary')?.focus();}}
     });
+    document.addEventListener('keydown',event=>{
+        if (event.key !== ' ' || event.metaKey || event.ctrlKey || event.altKey || event.isComposing) return;
+        const target=event.target as HTMLElement;
+        if(target?.closest('input,textarea,select,[contenteditable]')) return;
+        event.preventDefault(); event.stopImmediatePropagation();
+        if (!event.repeat) state.iinaApi?.postMessage('togglePlayback', {});
+    }, true);
     document.addEventListener('keydown',event=>{
         const target=event.target as HTMLElement;
         if(target?.closest('input,textarea,select,[contenteditable]')) return;

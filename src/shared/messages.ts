@@ -102,6 +102,7 @@ export interface SettingsSyncPayload {
 }
 
 export interface UiToPluginMessagePayloads {
+    togglePlayback: Record<string, never>;
     libraryTransfer: { action: string; text?: string; format?: string };
     playItem: PlayItemPayload;
     openExternalUrl: OpenExternalUrlPayload;

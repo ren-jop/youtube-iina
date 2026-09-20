@@ -11,108 +11,16 @@ const SEGMENT_CATEGORIES = ["sponsor", "selfpromo", "preview"] as const;
 
 const DEFAULT_SPONSORBLOCK_ENABLED = false;
 const DEFAULT_SEGMENT_ACTIONS: Record<SegmentCategory, SegmentAction> = {
-    sponsor: "ask",
+    sponsor: "ignore",
     selfpromo: "ignore",
     preview: "ignore"
 };
 
 const SEGMENT_FETCH_RETRY_MS = 12_000;
-const OVERLAY_MESSAGE_NAME = "sponsorblock-skip-segment";
 const REWIND_OVERLAY_DURATION_MS = 8_000;
 const SEGMENT_QUERY_PARAMS = SEGMENT_CATEGORIES
     .map((category) => `category=${encodeURIComponent(category)}`)
     .join("&");
-
-const CATEGORY_DISPLAY_NAME: Record<SegmentCategory, string> = {
-    sponsor: "Sponsor",
-    selfpromo: "Self Promotion",
-    preview: "Preview"
-};
-
-const CATEGORY_BUTTON_CLASS_NAME: Record<SegmentCategory, string> = {
-    sponsor: "skip-button--sponsor",
-    selfpromo: "skip-button--selfpromo",
-    preview: "skip-button--preview"
-};
-
-const REWIND_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" aria-hidden="true"><path d="M860-240 500-480l360-240v480Zm-400 0L100-480l360-240v480Zm-80-240Zm400 0Zm-400 90v-180l-136 90 136 90Zm400 0v-180l-136 90 136 90Z"/></svg>`;
-const SKIP_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" aria-hidden="true"><path d="M100-240v-480l360 240-360 240Zm400 0v-480l360 240-360 240ZM180-480Zm400 0Zm-400 90 136-90-136-90v180Zm400 0 136-90-136-90v180Z"/></svg>`;
-
-const SKIP_OVERLAY_STYLE = `
-    .skip-overlay {
-        position: fixed;
-        right: 120px;
-        bottom: 120px;
-        z-index: 1000;
-    }
-
-    .skip-button {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        font-size: 15px;
-        font-weight: 700;
-        line-height: 1.15;
-        padding: 8px 16px;
-        min-width: 170px;
-        background: #ffffff;
-        color: #000000;
-        border: 1px solid rgba(0, 0, 0, 0.12);
-        border-radius: 999px;
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
-        cursor: pointer;
-    }
-
-    .skip-button-content {
-        display: flex;
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
-    .skip-button-title {
-        font-size: 15px;
-        font-weight: 700;
-        margin: 0;
-    }
-
-    .skip-button-subtitle {
-        font-size: 11px;
-        font-weight: 600;
-        margin-top: 2px;
-        opacity: 0.78;
-    }
-
-    .skip-button-icon {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        margin-left: 12px;
-        color: rgba(0, 0, 0, 0.72);
-    }
-
-    .skip-button-icon svg {
-        width: 44px;
-        height: 44px;
-        display: block;
-        fill: currentColor;
-    }
-
-    .skip-button--sponsor {
-        background: #b8f59d;
-    }
-
-    .skip-button--selfpromo {
-        background: #ffe788;
-    }
-
-    .skip-button--preview {
-        background: #9fdcff;
-    }
-
-    .skip-button:active {
-        transform: scale(0.98);
-    }
-`;
 
 type SegmentAction = "ignore" | "ask" | "skip";
 type SegmentCategory = (typeof SEGMENT_CATEGORIES)[number];
@@ -176,7 +84,7 @@ function toFiniteNumber(value: unknown): number | undefined {
 }
 
 function normalizeAction(value: unknown): SegmentAction {
-    if (value === "ignore" || value === "ask" || value === "skip") {
+    if (value === "ignore" || value === "skip") {
         return value;
     }
 
@@ -278,30 +186,8 @@ function normalizeSponsorBlockSegment(value: unknown): SponsorBlockSegment | und
     };
 }
 
-function renderOverlayButton(segment: SponsorBlockSegment, action: OverlayAction): string {
-    const buttonClassName = CATEGORY_BUTTON_CLASS_NAME[segment.category];
-    const subtitle = CATEGORY_DISPLAY_NAME[segment.category];
-    const title = action === "rewind" ? "Rewind" : "Skip Segment";
-    const icon = action === "rewind" ? REWIND_ICON_SVG : SKIP_ICON_SVG;
-
-    return `
-        <div class="skip-overlay">
-            <button class="skip-button ${buttonClassName}" data-clickable onclick="iina.postMessage('${OVERLAY_MESSAGE_NAME}')" type="button">
-                <span class="skip-button-content">
-                    <span class="skip-button-title">${title}</span>
-                    <span class="skip-button-subtitle">${subtitle}</span>
-                </span>
-                <span class="skip-button-icon">${icon}</span>
-            </button>
-        </div>
-    `;
-}
-
 export function createSponsorBlockController(dependencies: SponsorBlockControllerDependencies): SponsorBlockController {
     let isStarted = false;
-    let overlayInitialized = false;
-    let overlayVisible = false;
-    let overlaySegmentKey = "";
     let overlayAction: OverlayAction | undefined;
 
     let sponsorBlockEnabled = DEFAULT_SPONSORBLOCK_ENABLED;
@@ -318,69 +204,15 @@ export function createSponsorBlockController(dependencies: SponsorBlockControlle
     let lastFetchVideoId = "";
     const autoSkippedSegmentKeys = new Set<string>();
 
-    const hideOverlay = (): void => {
-        activeAskSegment = undefined;
-        if (!overlayVisible) {
-            overlayAction = undefined;
-            return;
-        }
-
-        dependencies.overlay.hide();
-        dependencies.overlay.setClickable(false);
-        overlayVisible = false;
-        overlaySegmentKey = "";
-        overlayAction = undefined;
-    };
+    const hideOverlay = (): void => { overlayAction = undefined; };
 
     const clearRewindOverlayOffer = (): void => {
         rewindOverlayOffer = undefined;
     };
 
-    const showOverlay = (segment: SponsorBlockSegment, action: OverlayAction): void => {
-        const segmentKey = getSegmentKey(segment);
-        const content = renderOverlayButton(segment, action);
-        const needsContentRefresh = !overlayVisible || overlaySegmentKey !== segmentKey || overlayAction !== action;
-
-        dependencies.overlay.simpleMode();
-        dependencies.overlay.setStyle(SKIP_OVERLAY_STYLE);
-        if (needsContentRefresh) {
-            dependencies.overlay.setContent(content);
-            overlaySegmentKey = segmentKey;
-            overlayAction = action;
-        }
-
-        if (!overlayVisible) {
-            dependencies.overlay.setClickable(true);
-            dependencies.overlay.show();
-            overlayVisible = true;
-        }
-
-        if (!overlayInitialized) {
-            dependencies.overlay.onMessage(OVERLAY_MESSAGE_NAME, () => {
-                if (!isStarted || !sponsorBlockEnabled) return;
-                if (overlayAction === "rewind") {
-                    const rewindSegment = rewindOverlayOffer?.segment;
-                    if (!rewindSegment) {
-                        return;
-                    }
-
-                    dependencies.core.seekTo(Math.max(0, rewindSegment.startSeconds));
-                    clearRewindOverlayOffer();
-                    hideOverlay();
-                    return;
-                }
-
-                if (!activeAskSegment || overlayAction !== "skip") {
-                    return;
-                }
-
-                const target = Math.max(0, activeAskSegment.endSeconds + 0.25);
-                dependencies.core.seekTo(target);
-                hideOverlay();
-            });
-            overlayInitialized = true;
-        }
-    };
+    // The player stays unobstructed. Legacy ask settings migrate to ignore;
+    // explicit automatic skipping still works without skip/rewind popovers.
+    const showOverlay = (_segment: SponsorBlockSegment, _action: OverlayAction): void => {};
 
     const refreshSettings = (): void => {
         const now = Date.now();

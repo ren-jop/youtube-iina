@@ -21,6 +21,16 @@ For future updates, the plugin's GitHub repository is `rin677/youtube-iina`.
 - In anonymous mode, search and build a favorites list of channels to populate your feed.
 - Optionally, authenticate to load Home and Subscriptions (see [Disclaimer](#disclaimer) about using your Google account).
 
+## Simple playback and Japanese immersion
+
+Space pauses/resumes while browsing the sidebar; Enter activates a focused card. Text fields keep normal spaces. This plugin has no pause screen, playback banner or SponsorBlock skip/rewind popovers. Old SponsorBlock “ask” settings behave as “ignore”; explicit automatic skipping remains available.
+
+The French “Reprendre / Rechercher un titre” pause/title-lookup screen is not implemented by this fork. If it appears, inspect other installed IINA plugins and disable their pause/title overlay. This plugin cannot disable another plugin’s UI.
+
+The 日本語 switch applies Japanese filtering to video discovery, comments and live chat. Topic shortcuts and suggested subscriptions are in Feed. Suggestions open channel search; choose Favourite or Subscribe on the desired channel. Latin-script channel names stay searchable because many Japanese creators use them. Nothing is followed automatically.
+
+Inspired by [NihongoTube’s immersion features](https://www.nihongotube.app/features/), without claiming its transcript-based JLPT estimates, subtitle detection or audio-language verification. Suggested channels: [Onomappu](https://www.youtube.com/@Onomappu), [Japanese Immersion with Asami](https://www.youtube.com/@japaneseimmersionwithasami4249), and [おさるのジョージ](https://www.youtube.com/@CuriousGeorgeJP).
+
 ## Discussion and discovery settings
 
 Comments and Live chat open inside the YouTube sidebar for the playing video. These are read-only: no posting, threaded replies or archived chat replay. The chat integration uses an independent implementation of the live-chat protocol informed by [petamorikei/iina-youtube-chat](https://github.com/petamorikei/iina-youtube-chat); it does not require installing that plugin. Modern comment entity fields were checked against [YouTube.js](https://github.com/LuanRT/YouTube.js/blob/main/src/parser/classes/comments/CommentView.ts).
@@ -34,7 +44,7 @@ Settings & data includes Dark/Wireframe appearance, surface opacity, Japanese di
 - Related video recommendations for what to watch next.
 - Channel/video search and channel favorites management.
 - Playback in IINA by opening standard YouTube watch URLs.
-- Optional SponsorBlock integration with per-segment controls (`ignore`, `ask`, `skip`) for Sponsor, Unpaid/Self Promotion, and Preview/Recap.
+- Optional SponsorBlock integration with per-segment controls (`ignore`, `skip`) for Sponsor, Unpaid/Self Promotion, and Preview/Recap.
 
 ## Screenshot
 
