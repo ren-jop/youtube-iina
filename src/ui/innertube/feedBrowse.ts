@@ -74,8 +74,8 @@ function buildTvClientContext(config: TvInnertubeConfig): JsonObject {
     return {
         clientName: TV_CLIENT_NAME,
         clientVersion: config.clientVersion || TV_DEFAULT_CLIENT_VERSION,
-        hl: "en",
-        gl: "US"
+        hl: getOptions().japaneseMode ? "ja" : "en",
+        gl: getOptions().japaneseMode ? "JP" : "US"
     };
 }
 
@@ -387,7 +387,7 @@ async function fetchRelatedFeedUncached(
 const relatedCache = new Map<string, { at: number; result: FeedFetchResult }>();
 const relatedPending = new Map<string, Promise<FeedFetchResult>>();
 export async function fetchRelatedFeed(videoId: string, title = ""): Promise<FeedFetchResult> {
-    const key = `${videoId}:${getOptions().relatedMode}:${title}`;
+    const key = `${videoId}:${getOptions().relatedMode}:${getOptions().japaneseMode}:${title}`;
     const cached = relatedCache.get(key);
     if (cached && Date.now() - cached.at < 180000) return cached.result;
     const pending = relatedPending.get(key);
@@ -482,6 +482,7 @@ export async function fetchChannelFeedFromInnertube(channelId: string): Promise<
         }
 
         bestResult = parsed;
+        if (parsed.failureReason && parsed.failureReason !== "parse_empty") break;
     }
 
     return bestResult;

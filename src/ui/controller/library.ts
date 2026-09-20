@@ -4,6 +4,8 @@ import { exportBackup, exportSubscriptionsCsv, loadLibraryData, saveLibraryData,
 
 export function applyLocalAppearance(): void {
     const options=loadLibraryData().options;
+    document.body.dataset.theme = options.theme;
+    document.body.style.setProperty("--surface-opacity", String(options.opacity / 100));
     document.body.classList.toggle("yt-compact",options.compactCards);
     document.body.classList.toggle("yt-hide-stats",!options.showStats);
 }
@@ -19,6 +21,7 @@ export function initializeLibrary(onImported: () => void): void {
         const data=loadLibraryData();
         panel.querySelectorAll<HTMLInputElement>("input[data-option]").forEach(input=>{input.checked=data.options[input.dataset.option as keyof LocalOptions]===true;});
         panel.querySelectorAll<HTMLSelectElement>("select[data-option]").forEach(select => { select.value=String(data.options[select.dataset.option as keyof LocalOptions]); });
+        panel.querySelectorAll<HTMLTextAreaElement>("textarea[data-filter-list]").forEach(input => { input.value=data.options[input.dataset.filterList as "hiddenChannels" | "excludedWords"].join("\n"); });
         applyLocalAppearance();
     };
     panel.querySelectorAll<HTMLInputElement | HTMLSelectElement>("[data-option]").forEach(input=>{
@@ -26,13 +29,26 @@ export function initializeLibrary(onImported: () => void): void {
             try {
                 const data=loadLibraryData();
                 const key=input.dataset.option as keyof LocalOptions;
-                if(key==='relatedMode') data.options.relatedMode=input.value==='strict'?'strict':'topic';
+                if(key==='theme') data.options.theme=input.value==='wireframe'?'wireframe':'dark';
+                else if(key==='opacity') data.options.opacity=[60,75,90,100].includes(Number(input.value))?Number(input.value):90;
+                else if(key==='minimumMinutes') data.options.minimumMinutes=[0,3,5,10].includes(Number(input.value))?Number(input.value):0;
+                else if(key==='hiddenChannels'||key==='excludedWords') return;
+                else if(key==='relatedMode') data.options.relatedMode=input.value==='strict'?'strict':'topic';
                 else if(key==='playbackQuality') data.options.playbackQuality=input.value==='1080'||input.value==='720'?input.value:'auto';
                 else data.options[key]=(input as HTMLInputElement).checked;
-                saveLibraryData(data); refresh(); report("Settings saved. Related mode applies on the next refresh.");
+                saveLibraryData(data); refresh(); document.dispatchEvent(new CustomEvent("youtube-options-changed", { detail: key })); report("Settings saved. Japanese mode applies to your next search or feed refresh.");
             } catch { report("Could not save settings. Your previous settings remain active."); refresh(); }
         });
     });
+    document.addEventListener("youtube-options-changed", refresh);
+    panel.querySelectorAll<HTMLTextAreaElement>("textarea[data-filter-list]").forEach(input => input.addEventListener("change", () => {
+        try {
+            const data = loadLibraryData();
+            const key = input.dataset.filterList as "hiddenChannels" | "excludedWords";
+            data.options[key] = [...new Set(input.value.split(/\r?\n/).map(v => v.trim().slice(0,200)).filter(Boolean))].slice(0,500);
+            saveLibraryData(data); refresh(); document.dispatchEvent(new CustomEvent("youtube-options-changed")); report("Filters saved.");
+        } catch { report("Could not save filters."); }
+    }));
     const buttons=[...panel.querySelectorAll<HTMLButtonElement>("[data-transfer]")];
     const busy=(value:boolean)=>buttons.forEach(button=>button.disabled=value);
     state.iinaApi?.onMessage("libraryTransferResult", (wire: string)=>{

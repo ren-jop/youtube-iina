@@ -28,7 +28,8 @@ export function requestLabel(url: string): string {
     const known: Record<string, string> = {
         '/oembed': 'Channel attribution', '/': 'YouTube homepage', '/tv': 'YouTube TV config',
         '/youtubei/v1/search': 'YouTube search', '/youtubei/v1/browse': 'YouTube feed',
-        '/youtubei/v1/player': 'Video metadata', '/youtubei/v1/next': 'Related videos',
+        '/youtubei/v1/player': 'Video metadata', '/youtubei/v1/next': 'Video discussion / related',
+        '/youtubei/v1/live_chat/get_live_chat': 'Live chat',
         '/o/oauth2/device/code': 'Sign-in code', '/o/oauth2/token': 'Sign-in token',
         '/o/oauth2/revoke': 'Sign-out', '/youtubei/v1/subscription/subscribe': 'Subscribe',
         '/youtubei/v1/subscription/unsubscribe': 'Unsubscribe'

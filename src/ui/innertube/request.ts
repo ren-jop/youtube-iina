@@ -1,3 +1,4 @@
+import { getOptions } from "../storage/libraryData";
 import type { InnertubeConfig, JsonObject } from "../types";
 
 import { USER_AGENT } from "../constants";
@@ -12,7 +13,7 @@ export function buildWebInnertubeHeaders(config: InnertubeConfig): Record<string
         "Origin": "https://www.youtube.com",
         "Referer": "https://www.youtube.com/",
         "User-Agent": USER_AGENT,
-        "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Language": getOptions().japaneseMode ? "ja-JP,ja;q=0.9,en;q=0.5" : "en-US,en;q=0.9",
         "X-Youtube-Client-Name": "1",
         "X-Youtube-Client-Version": config.clientVersion
     };
@@ -28,7 +29,7 @@ export function buildWebClientContext(config: InnertubeConfig): JsonObject {
     return {
         clientName: "WEB",
         clientVersion: config.clientVersion,
-        hl: "en",
-        gl: "US"
+        hl: getOptions().japaneseMode ? "ja" : "en",
+        gl: getOptions().japaneseMode ? "JP" : "US"
     };
 }

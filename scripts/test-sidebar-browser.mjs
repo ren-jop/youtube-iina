@@ -14,7 +14,7 @@ try {
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.route('https://**/*',route=>route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><rect width="320" height="180" fill="#253447"/><circle cx="160" cy="90" r="42" fill="#455d78"/></svg>'}));
  await page.addInitScript(()=>{
-  const handlers={};window.testRequests=[];window.testSlow=false;window.testFail=false;
+  const handlers={};window.testHandlers=handlers;window.testRequests=[];window.testSlow=false;window.testFail=false;
   const video=(id,title)=>({videoRenderer:{videoId:id,title:{simpleText:title},longBylineText:{simpleText:'Studio Notes'},navigationEndpoint:{watchEndpoint:{videoId:id}},thumbnail:{thumbnails:[{url:`https://i.ytimg.com/vi/${id}/hqdefault.jpg`}]}}});
   const videos=Array.from({length:20},(_,i)=>video('video'+String(i).padStart(6,'0'),['Understanding digital addiction','The science of attention','Building a calmer digital life'][i%3]));
   localStorage.setItem('yt-favorites-v1',JSON.stringify([{channelId:'UC'+'a'.repeat(22),title:'Studio Notes',thumbnailUrl:'',addedAt:new Date().toISOString()}]));
@@ -26,6 +26,9 @@ try {
     let text='{}';
     if(p.method==='GET'&&p.url.includes('oembed'))text=JSON.stringify({title:'Understanding digital addiction',author_name:'Studio Notes'});
     else if(p.method==='GET')text='"INNERTUBE_API_KEY":"test","INNERTUBE_CONTEXT_CLIENT_VERSION":"test"';
+    else if(p.url.includes('/live_chat/get_live_chat'))text=JSON.stringify({continuationContents:{liveChatContinuation:{continuations:[{timedContinuationData:{continuation:'chat-next',timeoutMs:2000}}],actions:[{addChatItemAction:{item:{liveChatTextMessageRenderer:{id:'chat-one',authorName:{simpleText:'Live viewer'},message:{runs:[{text:'Hello from chat <img onerror=alert(1)>'}]}}}}}]}}});
+    else if(p.url.includes('/next')&&p.body?.continuation==='comments-token')text=JSON.stringify({onResponseReceivedEndpoints:[{reloadContinuationItemsCommand:{targetId:'comments-section',continuationItems:[{commentThreadRenderer:{comment:{commentRenderer:{commentId:'comment-one',authorText:{simpleText:'A viewer'},contentText:{runs:[{text:'A thoughtful comment <script>bad()</script>'}]}}}}}]}}]});
+    else if(p.url.includes('/next')&&window.testDiscussion)text=JSON.stringify({liveChatRenderer:{continuations:[{reloadContinuationData:{continuation:'chat-token'}}]},contents:[{itemSectionRenderer:{targetId:'comments-section',contents:[{continuationItemRenderer:{continuationEndpoint:{continuationCommand:{token:'comments-token'}}}}]}}]});
     else if(p.url.includes('/next'))text=JSON.stringify({contents:{twoColumnWatchNextResults:{results:{results:{contents:[{videoPrimaryInfoRenderer:{title:{simpleText:'Understanding digital addiction'}}}]}},secondaryResults:{secondaryResults:{results:[]}}}}});
     else if(p.url.includes('/search'))text=JSON.stringify({contents:[video('match000001','Digital addiction and attention'),video('match000002','How to quit digital addictions')]});
     else text=JSON.stringify({contents:videos});
@@ -72,6 +75,45 @@ try {
  await page.click('[data-library] summary');
  await page.setViewportSize({width:320,height:650});
  assert.equal(await page.evaluate(()=>document.body.scrollWidth<=innerWidth),true,'narrow sidebar must not scroll horizontally');
+
+ await page.evaluate(()=>window.testDiscussion=true);
+ await page.click('.yt-tab[data-view="comments"]');
+ await page.waitForSelector('[data-view="comments"] .yt-discussion-entry');
+ assert.match(await page.locator('[data-view="comments"] .yt-discussion-entry').textContent(),/thoughtful comment/);
+ assert.equal(await page.locator('[data-discussion-list] script').count(),0,'comments must render as text');
+ await page.click('.yt-tab[data-view="chat"]');
+ await page.waitForSelector('[data-view="chat"] .yt-discussion-entry');
+ assert.equal(await page.locator('[data-view="chat"] .yt-discussion-entry img').count(),0,'chat must render as text');
+ await page.click('.yt-tab[data-view="feed"]');
+ const chatCount=await page.evaluate(()=>window.testRequests.filter(r=>r.url.includes('get_live_chat')).length);
+ await page.waitForTimeout(2300);
+ assert.equal(await page.evaluate(()=>window.testRequests.filter(r=>r.url.includes('get_live_chat')).length),chatCount,'leaving chat cancels polling');
+ // A late response after a video switch must never reappear in the new discussion.
+ await page.evaluate(()=>window.testSlow=true);
+ await page.click('.yt-tab[data-view="comments"]');
+ await page.evaluate(()=>window.testHandlers.playbackLifecycleEvent({event:'file-loaded',videoId:'newvideo001'}));
+ await page.click('.yt-tab[data-view="feed"]');
+ await page.waitForTimeout(700);
+ assert.equal(await page.locator('[data-view="comments"] .yt-discussion-entry').count(),0);
+ await page.evaluate(()=>window.testSlow=false);
+ await page.click('[data-settings-open]');
+ await page.selectOption('[data-option="theme"]','wireframe');
+ await page.selectOption('[data-option="opacity"]','60');
+ await page.check('[data-option="japaneseMode"]');
+ assert.equal(await page.locator('body').getAttribute('data-theme'),'wireframe');
+ assert.equal(await page.locator('body').evaluate(el=>el.style.getPropertyValue('--surface-opacity')),'0.6');
+ await page.click('[data-library] summary');
+ await page.fill('[data-search-input]','数学');await page.press('[data-search-input]','Enter');
+ await page.waitForSelector('[data-videos-list] .yt-item');
+ assert.equal(await page.evaluate(()=>window.testRequests.filter(r=>r.url.includes('/search')).at(-1).body.context.client.hl),'ja');
+ await page.locator('[data-videos-list] .yt-item').first().hover();
+ await page.locator('[data-videos-list] .yt-hide-channel').first().click();
+ assert.equal(await page.locator('[data-videos-list] .yt-item').count(),0,'hide channel filters every video by that name');
+ await page.click('[data-settings-open]');
+ await page.fill('[data-filter-list="hiddenChannels"]','');await page.locator('[data-filter-list="hiddenChannels"]').blur();
+ assert.equal(await page.locator('[data-videos-list] .yt-item').count(),2,'unhiding restores results without network requests');
+ await page.click('[data-library] summary');
+ await page.screenshot({path:'/tmp/iina-wireframe.png'});
  assert.deepEqual(errors,[]);
- console.log('Browser checks passed: initial feed, refresh DOM retention, playback state, Related search/cache, Recent, search keyboard shortcut, settings and narrow layout.');
+ console.log('Browser checks passed: initial feed, refresh DOM retention, playback state, Related search/cache, Recent, search keyboard shortcut, settings, narrow layout, comments/chat, stale-response suppression, polling cancellation, Japanese requests, channel hiding and wireframe appearance.');
 } finally {await browser.close();server.close();}

@@ -1,0 +1,35 @@
+import { expect, test } from "bun:test";
+import { chatRenderer, continuation, initialCommentToken, parseChat, parseComments } from "../src/ui/parsers/discussion";
+import { filterReason } from "../src/ui/storage/feedFilters";
+import { defaultOptions, normalizeOptions } from "../src/ui/storage/libraryData";
+const token = (value:string) => ({continuationItemRenderer:{continuationEndpoint:{continuationCommand:{token:value}}}});
+test("comments initialization scopes its token away from recommendations and chat", () => {
+ const data = {related:token("wrong"),liveChatRenderer:{continuations:[{reloadContinuationData:{continuation:"chat"}}]},contents:[{itemSectionRenderer:{targetId:"comments-section",contents:[token("comments")]}}]};
+ expect(initialCommentToken(data)).toBe("comments");
+ expect(continuation(chatRenderer(data)?.continuations)).toBe("chat");
+ expect(initialCommentToken({related:token("wrong")})).toBe("");
+});
+test("parses legacy and modern comments and never chooses a reply continuation", () => {
+ const data = {onResponseReceivedEndpoints:[{reloadContinuationItemsCommand:{targetId:"comments-section",continuationItems:[{commentThreadRenderer:{comment:{commentRenderer:{commentId:"old",authorText:{simpleText:"Author"},contentText:{runs:[{text:"`${danger}<script>"}]} }},replies:{contents:[token("reply")]}}},token("next")]}}],frameworkUpdates:{entityBatchUpdate:{mutations:[{payload:{commentEntityPayload:{properties:{commentId:"modern",content:{content:"日本語"},publishedTime:"today"},author:{displayName:"名前"},toolbar:{likeCountNotliked:"2"}}}}]}}};
+ const parsed = parseComments(data);
+ expect(parsed.entries.map(e=>e.author).sort()).toEqual(["Author","名前"].sort());
+ expect(parsed.entries.find(e=>e.id==="old")?.text).toBe("`${danger}<script>"); expect(parsed.next).toBe("next");
+});
+test("chat supports paid messages, emojis, replacement and moderation, with bounded polling", () => {
+ const page = parseChat({continuationContents:{liveChatContinuation:{continuations:[{timedContinuationData:{continuation:"next",timeoutMs:1}}],actions:[{addChatItemAction:{item:{liveChatPaidMessageRenderer:{id:"one",authorName:{simpleText:"Viewer"},authorExternalChannelId:"channel",message:{runs:[{text:"Hello "},{emoji:{shortcuts:[":wave:"]}}]},purchaseAmountText:{simpleText:"$5"}}}}},{removeChatItemAction:{targetItemId:"old"}},{markChatItemsByAuthorAsDeletedAction:{externalChannelId:"banned"}},{replaceChatItemAction:{targetItemId:"replaced",replacementItem:{liveChatTextMessageRenderer:{id:"new",message:{simpleText:"Updated"}}}}}]}}});
+ expect(page.entries[0]).toMatchObject({text:"Hello :wave:",meta:"$5",channelId:"channel"});
+ expect(page.deleted).toEqual(["old","replaced"]); expect(page.deletedAuthors).toEqual(["banned"]); expect(page.delay).toBe(2000); expect(page.next).toBe("next");
+});
+test("local quality rules are optional and do not judge unknown durations or popularity", () => {
+ const video={title:"YOU WON'T BELIEVE THIS!!!",channelTitle:"Example",durationLabel:"1:30"};
+ expect(filterReason(video, defaultOptions)).toBe("");
+ expect(filterReason(video,{...defaultOptions,qualityFilter:true})).toBe("Clickbait title");
+ expect(filterReason({...video,title:"A small channel's careful explanation",durationLabel:""},{...defaultOptions,minimumMinutes:10})).toBe("");
+ expect(filterReason(video,{...defaultOptions,minimumMinutes:3})).toBe("Below minimum length");
+ expect(filterReason(video,{...defaultOptions,hiddenChannels:[" example "]})).toBe("Hidden channel");
+ expect(filterReason({...video,title:"数学の解説"},{...defaultOptions,excludedWords:["数学"]})).toBe("Excluded title phrase");
+});
+test("new appearance and discovery settings validate old and imported backups", () => {
+ expect(normalizeOptions({theme:"bad",opacity:-1,hiddenChannels:["a",null,"a"],minimumMinutes:500})).toMatchObject({theme:"dark",opacity:90,hiddenChannels:["a"],minimumMinutes:0,japaneseMode:false});
+ expect(normalizeOptions({...defaultOptions,theme:"wireframe",japaneseMode:true,opacity:60})).toMatchObject({theme:"wireframe",japaneseMode:true,opacity:60});
+});

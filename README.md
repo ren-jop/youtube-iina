@@ -21,6 +21,12 @@ For future updates, the plugin's GitHub repository is `rin677/youtube-iina`.
 - In anonymous mode, search and build a favorites list of channels to populate your feed.
 - Optionally, authenticate to load Home and Subscriptions (see [Disclaimer](#disclaimer) about using your Google account).
 
+## Discussion and discovery settings
+
+Comments and Live chat open inside the YouTube sidebar for the playing video. These are read-only: no posting, threaded replies or archived chat replay. The chat integration uses an independent implementation of the live-chat protocol informed by [petamorikei/iina-youtube-chat](https://github.com/petamorikei/iina-youtube-chat); it does not require installing that plugin. Modern comment entity fields were checked against [YouTube.js](https://github.com/LuanRT/YouTube.js/blob/main/src/parser/classes/comments/CommentView.ts).
+
+Settings & data includes Dark/Wireframe appearance, surface opacity, Japanese discovery, hidden channels, excluded title phrases, clickbait-pattern filtering and minimum video length. Filters are optional local rules, not a judgement of accuracy or production quality. Unknown lengths are kept. Hidden channels match display names, which can change or collide. Japanese discovery sets the YouTube language/region to Japanese/Japan; it does not translate content or alter your saved channels. These preferences travel with your JSON backup.
+
 ## Features
 
 - Anonymous mode with merged latest uploads from favorited channels.

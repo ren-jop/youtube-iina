@@ -1,3 +1,4 @@
+import { filterReason } from "../storage/feedFilters";
 import { reconcileList } from "./reconcile";
 import type { SearchChannelResult, SearchState, SearchVideoResult, VideoMetadata } from "../types";
 import {
@@ -66,7 +67,7 @@ export function renderSearchResults(dependencies: SearchRenderDependencies): voi
         setElementVisibility(channelsEmptyState, false);
         setElementVisibility(channelsList, true);
 
-        searchState.channels.forEach((channel) => {
+        searchState.channels.filter(channel => !filterReason({title:"",channelTitle:channel.title})).forEach((channel) => {
             const item = document.createElement("li");
             item.className = "yt-item yt-item-channel-row";
 
@@ -108,7 +109,9 @@ export function renderSearchResults(dependencies: SearchRenderDependencies): voi
         });
     }
 
-    if (searchState.videos.length === 0) {
+    const visibleVideos = searchState.videos.filter(video => !filterReason({...video,durationLabel:resolveVideoPresentation(video,getVideoMetadataFromCache(video.videoId)).durationLabel}));
+    videosEmptyState.textContent = searchState.videos.length && !visibleVideos.length ? "All videos hidden by your filters. Adjust Settings & data to show more." : "No videos found.";
+    if (visibleVideos.length === 0) {
         reconcileList(videosList, [], () => "", () => "", () => document.createElement("li"));
         setElementVisibility(videosEmptyState, Boolean(searchState.query) && !searchState.isLoading);
         setElementVisibility(videosList, false);
@@ -116,7 +119,7 @@ export function renderSearchResults(dependencies: SearchRenderDependencies): voi
         setElementVisibility(videosEmptyState, false);
         setElementVisibility(videosList, true);
 
-        reconcileList(videosList, searchState.videos, video => video.videoId, video => JSON.stringify([video, getVideoMetadataFromCache(video.videoId)]), (video) => {
+        reconcileList(videosList, visibleVideos, video => video.videoId, video => JSON.stringify([video, getVideoMetadataFromCache(video.videoId)]), (video) => {
             const metadata = getVideoMetadataFromCache(video.videoId);
             const presentation = resolveVideoPresentation(video, metadata);
 

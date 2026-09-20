@@ -1,3 +1,4 @@
+import { getOptions } from "../storage/libraryData";
 import {
     FEED_TIMEOUT_MS,
     TV_CLIENT_NAME,
@@ -47,8 +48,8 @@ function buildTvClientContext(config: TvInnertubeConfig): JsonObject {
     return {
         clientName: TV_CLIENT_NAME,
         clientVersion: config.clientVersion || TV_DEFAULT_CLIENT_VERSION,
-        hl: "en",
-        gl: "US"
+        hl: getOptions().japaneseMode ? "ja" : "en",
+        gl: getOptions().japaneseMode ? "JP" : "US"
     };
 }
 

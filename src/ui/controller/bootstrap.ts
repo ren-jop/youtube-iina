@@ -1,3 +1,4 @@
+import { createDiscussionController } from "./discussion";
 import { updatePlaybackStatus } from "./playerUi";
 import { renderHistory, initializePolish } from "./polish";
 import { initializeLibrary } from "./library";
@@ -30,7 +31,8 @@ export function initializeSidebar(): void {
     });
     setHttpBridgeApi(state.iinaApi);
 
-    const navigationController = createNavigationController();
+    const discussionController = createDiscussionController();
+    const navigationController = createNavigationController(discussionController.update);
 
     let authController: AuthController | null = null;
 
@@ -131,6 +133,8 @@ export function initializeSidebar(): void {
         iinaApi: state.iinaApi,
         onPlaybackLifecycleEvent: payload => {
             relatedController.handlePlaybackLifecycleEvent(payload);
+            if (payload.event === "file-loaded") discussionController.update();
+            else discussionController.suspend();
             if (payload.event === "file-loaded" && payload.videoId) {
                 const item = [...state.feedState.items, ...state.searchState.videos, ...state.relatedState.items, ...state.subscriptionsState.items].find(item => item.videoId === payload.videoId);
                 try { recordPlayedVideo({ videoId: payload.videoId, title: item?.title || "", channelTitle: item?.channelTitle || "" }); }
@@ -165,6 +169,10 @@ export function initializeSidebar(): void {
         }
     });
 
+    document.addEventListener("youtube-options-changed", () => {
+        feedController.renderFeed(); subscriptionsController.renderSubscriptions();
+        searchController?.renderSearchResults(); relatedController.renderRelated();
+    });
     initializePolish(navigationController.setActiveView);
     renderHistory(feedController.playFeedItem);
     initializeLibrary(() => {
