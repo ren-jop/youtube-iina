@@ -14,13 +14,14 @@ try {
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.route('https://**/*',route=>route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><rect width="320" height="180" fill="#253447"/><circle cx="160" cy="90" r="42" fill="#455d78"/></svg>'}));
  await page.addInitScript(()=>{
-  const handlers={};window.testHandlers=handlers;window.testRequests=[];window.testSlow=false;window.testFail=false;
+  const handlers={};window.testHandlers=handlers;window.testPauseCount=0;window.testPlayCount=0;window.testRequests=[];window.testSlow=false;window.testFail=false;
   const video=(id,title)=>({videoRenderer:{videoId:id,title:{simpleText:title},longBylineText:{simpleText:'Studio Notes'},navigationEndpoint:{watchEndpoint:{videoId:id}},thumbnail:{thumbnails:[{url:`https://i.ytimg.com/vi/${id}/hqdefault.jpg`}]}}});
   const videos=Array.from({length:20},(_,i)=>video('video'+String(i).padStart(6,'0'),['Understanding digital addiction','The science of attention','Building a calmer digital life'][i%3]));
   localStorage.setItem('yt-favorites-v1',JSON.stringify([{channelId:'UC'+'a'.repeat(22),title:'Studio Notes',thumbnailUrl:'',addedAt:new Date().toISOString()}]));
   window.iina={onMessage:(name,fn)=>handlers[name]=fn,postMessage:(name,p)=>{
     if(name==='requestSettingsSync')return;
-    if(name==='playItem'){handlers.playbackSwitchStatus?.({stage:'loading'});setTimeout(()=>{handlers.playbackSwitchStatus?.({stage:'loaded',elapsedMs:200});handlers.playbackLifecycleEvent?.({event:'file-loaded',videoId:p.videoId,path:p.url,observedAt:new Date().toISOString()});},200);return;}
+    if(name==='togglePlayback'){window.testPauseCount++;return;}
+    if(name==='playItem'){window.testPlayCount++;handlers.playbackSwitchStatus?.({stage:'loading'});setTimeout(()=>{handlers.playbackSwitchStatus?.({stage:'loaded',elapsedMs:200});handlers.playbackLifecycleEvent?.({event:'file-loaded',videoId:p.videoId,path:p.url,observedAt:new Date().toISOString()});},200);return;}
     if(name!=='httpRequest')return;
     window.testRequests.push(p);
     let text='{}';
@@ -50,7 +51,15 @@ try {
  assert.equal(await page.evaluate(()=>window.firstCard===document.querySelector('[data-feed-favorites] .yt-item')),true,'network failure must retain previous feed');
  await page.evaluate(()=>window.testFail=false);
  await page.locator('[data-feed-favorites] .yt-item').first().click();
- await page.waitForSelector('[data-player-status]:text("Now playing")');
+ await page.waitForFunction(()=>document.querySelector('[data-history-list]')?.children.length===1);
+ assert.equal(await page.locator('[data-player-bar]').count(),0,'no playback banner');
+ await page.locator('[data-feed-favorites] .yt-item').first().focus();
+ await page.keyboard.press('Space');
+ assert.equal(await page.evaluate(()=>window.testPauseCount),1,'Space pauses from a focused video card');
+ assert.equal(await page.evaluate(()=>window.testPlayCount),1,'Space must not reopen the video');
+ await page.fill('[data-search-input]','hello');await page.press('[data-search-input]','Space');
+ assert.equal(await page.locator('[data-search-input]').inputValue(),'hello ','spaces still work while typing');
+ assert.equal(await page.evaluate(()=>window.testPauseCount),1);
  assert.equal(await page.locator('.yt-tab.is-active').getAttribute('data-view'),'feed');
  await page.click('.yt-tab[data-view="related"]');
  await page.waitForSelector('[data-related-list] .yt-item');
@@ -119,6 +128,20 @@ try {
  assert.equal(await page.locator('[data-videos-list] .yt-item').count(),2,'unhiding restores results without network requests');
  await page.click('[data-library] summary');
  await page.screenshot({path:'/tmp/iina-wireframe.png'});
+ await page.click('.yt-tab[data-view="feed"]');
+ await page.locator('.yt-suggestions summary').click();
+ assert.equal(await page.locator('[data-channel-suggestions] button').count(),3);
+ await page.locator('[data-channel-suggestions] button').first().click();
+ await page.waitForFunction(()=>window.testRequests.filter(r=>r.url.includes('/search')).at(-1)?.body.query==='Onomappu オノマップ');
+ await page.click('.yt-tab[data-view="comments"]');
+ await page.waitForTimeout(150);
+ assert.equal(await page.locator('[data-view="comments"] .yt-discussion-entry').count(),0,'Japanese mode hides English comments');
+ await page.uncheck('[data-japanese-toggle]');
+ await page.waitForSelector('[data-view="comments"] .yt-discussion-entry');
+ await page.check('[data-japanese-toggle]');
+ await page.click('.yt-tab[data-view="feed"]');
+ await page.locator('[data-japanese-topics] button').nth(1).click();
+ await page.waitForFunction(()=>window.testRequests.filter(r=>r.url.includes('/search')).at(-1)?.body.query==='料理 作り方');
  assert.deepEqual(errors,[]);
  console.log('Browser checks passed: initial feed, refresh DOM retention, playback state, Related search/cache, Recent, search keyboard shortcut, settings, narrow layout, comments/chat, stale-response suppression, polling cancellation, Japanese requests, channel hiding and wireframe appearance.');
 } finally {await browser.close();server.close();}

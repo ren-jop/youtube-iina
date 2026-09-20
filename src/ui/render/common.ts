@@ -152,7 +152,7 @@ export function makeCardPlayable(element: HTMLElement, onActivate: () => void): 
     });
     element.addEventListener("keydown", (event) => {
         if (event.target !== element) return;
-        if (event.key !== "Enter" && event.key !== " ") {
+        if (event.key !== "Enter") {
             return;
         }
         event.preventDefault();

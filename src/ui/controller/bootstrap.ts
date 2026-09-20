@@ -1,5 +1,5 @@
+import { initializeDiscovery } from "./discovery";
 import { createDiscussionController } from "./discussion";
-import { updatePlaybackStatus } from "./playerUi";
 import { renderHistory, initializePolish } from "./polish";
 import { initializeLibrary } from "./library";
 import { recordPlayedVideo } from "../storage/libraryData";
@@ -22,7 +22,6 @@ import { createSubscriptionsController } from "./subscriptions";
 export function initializeSidebar(): void {
     initializeDiagnostics();
     state.iinaApi?.onMessage("playbackSwitchStatus", payload => {
-        updatePlaybackStatus(payload.stage);
         recordDiagnostic(`Playback ${payload.stage}${Number.isFinite(payload.elapsedMs) ? ` in ${payload.elapsedMs}ms` : ""}`);
         if (payload.stage === "failed") {
             const status = document.querySelector<HTMLElement>("[data-library-status]");
@@ -173,6 +172,7 @@ export function initializeSidebar(): void {
         feedController.renderFeed(); subscriptionsController.renderSubscriptions();
         searchController?.renderSearchResults(); relatedController.renderRelated();
     });
+    initializeDiscovery(navigationController.setActiveView, searchController.performSearch);
     initializePolish(navigationController.setActiveView);
     renderHistory(feedController.playFeedItem);
     initializeLibrary(() => {

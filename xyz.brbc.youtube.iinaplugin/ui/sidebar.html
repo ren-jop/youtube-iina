@@ -27,6 +27,7 @@
                         </button>
                     </div>
                     <div class="yt-header-actions">
+                        <label class="yt-japanese-switch" title="Japanese immersion"><input type="checkbox" data-japanese-toggle aria-label="Japanese immersion"> JP</label>
                         <button class="yt-icon-button" type="button" data-settings-open aria-label="Settings and data" title="Settings and data">⚙</button>
                         <button class="yt-icon-button yt-home-button" type="button" aria-label="Home" title="Home" data-home-refresh>
                             <svg class="yt-home-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
@@ -70,12 +71,11 @@
             </div>
         </header>
 
-        <div class="yt-player-bar" data-player-bar hidden aria-live="polite">
-            <span class="yt-player-dot" aria-hidden="true"></span><div><small data-player-status>Now playing</small><p data-player-title></p></div>
-        </div>
         <main class="yt-content">
             <section class="yt-view" data-view="history"><p class="yt-empty" data-history-empty>Your recently played videos will appear here.</p><ul class="yt-list" data-history-list></ul></section>
             <section class="yt-view is-active yt-feed-home" data-view="feed">
+                <div data-japanese-topics hidden aria-label="Japanese topics"></div>
+                <details class="yt-suggestions"><summary>Suggested subscriptions</summary><div data-channel-suggestions></div><p data-suggestion-status role="status"></p></details>
                 <p class="yt-empty" data-feed-empty>No videos yet. Add channels to build your feed.</p>
                 <p class="yt-empty" data-feed-status hidden></p>
                 <div class="yt-loading" data-feed-loading hidden role="status" aria-label="Loading">
@@ -143,7 +143,7 @@
             <label>Surface opacity<select data-option="opacity"><option value="100">Solid</option><option value="90">90%</option><option value="75">75%</option><option value="60">60%</option></select></label>
             <p>Transparency depends on IINA’s sidebar background.</p>
             <label><input type="checkbox" data-option="japaneseMode"> Japanese discovery / 日本語</label>
-            <p>English searches are sent to MyMemory for translation and replaced with Japanese in the search box. Discovery only shows predominantly Japanese titles containing kana; ambiguous titles are hidden. This cannot verify spoken audio. Your saved channels stay the same.</p>
+            <p>English searches are sent to MyMemory for translation and replaced with Japanese in the search box. Discovery only shows predominantly Japanese titles containing kana; ambiguous titles are hidden. Comments and chat are filtered too. Channel names may use Latin letters. This cannot verify spoken audio. Your saved channels stay the same.</p>
             <label><input type="checkbox" data-option="qualityFilter"> Reduce clickbait</label>
             <p>Hides titles with phrases such as “you won’t believe”, “shocking truth” and “必見”, or excessive punctuation. This is a title heuristic, not an AI-quality detector.</p>
             <label>Minimum video length<select data-option="minimumMinutes"><option value="0">Any length</option><option value="3">3 minutes</option><option value="5">5 minutes</option><option value="10">10 minutes</option></select></label>

@@ -1,3 +1,5 @@
+import { isJapaneseTitle } from "../innertube/japanese";
+import { getOptions } from "../storage/libraryData";
 import { sendHttpRequest } from "../bridge/httpBridge";
 import { getInnertubeConfig } from "../innertube/config";
 import { buildInnertubeUrl, buildWebClientContext, buildWebInnertubeHeaders } from "../innertube/request";
@@ -21,9 +23,10 @@ export function createDiscussionController(): { update: () => void; suspend: () 
     const render = () => {
         const list = panel().querySelector<HTMLElement>("[data-discussion-list]")!;
         const nearBottom = content.scrollHeight - content.scrollTop - content.clientHeight < 100;
+        const visible = new Map([...entries].filter(([, entry]) => !getOptions().japaneseMode || isJapaneseTitle(entry.text)));
         const existing = new Map([...list.children].map(el => [(el as HTMLElement).dataset.id, el]));
-        for (const [id, element] of existing) if (!entries.has(id!)) element.remove();
-        for (const item of entries.values()) {
+        for (const [id, element] of existing) if (!visible.has(id!)) element.remove();
+        for (const item of visible.values()) {
             let row = existing.get(item.id) as HTMLElement | undefined;
             if (row && row.dataset.signature === JSON.stringify(item)) continue;
             const replacement = document.createElement("li");
@@ -97,6 +100,7 @@ export function createDiscussionController(): { update: () => void; suspend: () 
     document.querySelectorAll("[data-discussion-more]").forEach(button => button.addEventListener("click", () => void load()));
     document.querySelectorAll("[data-discussion-refresh]").forEach(button => button.addEventListener("click", () => { suspend(); update(); }));
     document.addEventListener("visibilitychange", () => { if (document.hidden) suspend(); else update(); });
+    document.addEventListener("youtube-options-changed", () => { if (active) render(); });
     window.addEventListener("pagehide", suspend);
     return { update, suspend };
 }

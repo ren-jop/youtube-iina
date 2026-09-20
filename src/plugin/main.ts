@@ -165,6 +165,10 @@ event.on("iina.window-loaded", () => {
         if (managedPlayerId !== null) global.postMessage("playerClosed", { playerId: managedPlayerId });
     });
 
+    sidebar.onMessage("togglePlayback", () => {
+        if (!windowClosed) iina.mpv.command("cycle", ["pause"]);
+    });
+
     sidebar.onMessage(MESSAGE_NAMES.PlayItem, (data: PlayItemPayload) => {
         console.log("YouTube: Received playItem");
 

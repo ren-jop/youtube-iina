@@ -1,9 +1,12 @@
-# YouTube for IINA 1.2.8
+# YouTube for IINA 1.2.9
 
-- Japanese mode translates English searches through MyMemory before searching and replaces the search-box text with the Japanese query. Japanese input is kept as entered. Translations are cached in memory, time out after eight seconds and never silently fall back to an English search. Queries are sent to the translation provider only when Japanese mode is enabled.
-- Japanese discovery now strictly filters Feed, Search and Related to predominantly Japanese titles containing kana, rather than merely setting the region. English, Chinese and ambiguous kanji-only titles are excluded. This is title-language filtering, not verification of the video's spoken audio. Recent history remains accessible.
-- Late translations cannot overwrite a newer submitted search or text you edited while waiting.
+- Fixed Space in the sidebar: pauses/resumes IINA instead of re-opening a focused video or scrolling. Held keys do not repeatedly toggle. Text inputs keep normal spaces; Enter still activates a card. Submitting search releases text-field focus.
+- Removed the extra now-playing/opening banner, thumbnail play overlays, and SponsorBlock skip/rewind popovers. Automatic skipping remains optional. Legacy “ask” settings become “ignore”.
+- Added a quick 日本語 toggle and Japanese topic shortcuts in Feed. Japanese filtering now also covers comments and live chat; toggling restores/hides existing discussion immediately without another request. Latin-script channel names remain searchable so Japanese creators can be found and followed.
+- Added Suggested subscriptions in Feed: Onomappu, Japanese Immersion with Asami, and おさるのジョージ. Find channel opens search; use Favourite or Subscribe on the channel you choose. No automatic follows, difficulty labels or subscription IDs are fabricated.
 
-Validation: TypeScript checks, 63 regression tests, production builds and Chromium interaction tests, including translated search-box text and request payload. Native macOS playback and the external translation service were not live-verified here.
+The French “Reprendre / Rechercher un titre” pause screen in the report is not part of this fork. It appears to be another plugin’s title-lookup overlay. This release cannot disable another installed plugin: inspect IINA Settings → Plugins and turn off that plugin’s pause overlay. IINA’s own playback controls remain unchanged.
 
-Install the `.iinaplgz` and fully restart IINA. Keep Japanese discovery enabled under Settings & data.
+Validation: 63 passing regression tests, including the native pause command and closed-window guard; TypeScript checks, manifest verification, production builds and Chromium interaction tests. Browser checks exercise Space on a card, spaces in text input, absence of the banner, Japanese comment filtering, topic/suggestion navigation and existing browsing features. Native macOS interaction with other installed plugins remains unverified.
+
+Install the `.iinaplgz` and fully restart IINA. Diagnostics should report 1.2.9.

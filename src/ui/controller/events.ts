@@ -33,7 +33,9 @@ export function createEventsController(dependencies: EventsControllerDependencie
             searchForm.addEventListener("submit", (event) => {
                 event.preventDefault();
                 dependencies.setActiveView("search");
-                void dependencies.performSearch(searchInput.value);
+                const query = searchInput.value;
+                searchInput.blur();
+                void dependencies.performSearch(query);
             });
         }
 

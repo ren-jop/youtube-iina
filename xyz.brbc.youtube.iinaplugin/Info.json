@@ -1,9 +1,9 @@
 {
   "name": "YouTube",
   "identifier": "xyz.brbc.youtube",
-  "version": "1.2.8",
+  "version": "1.2.9",
   "ghRepo": "rin677/youtube-iina",
-  "ghVersion": 11,
+  "ghVersion": 12,
   "description": "Browse and play YouTube videos in IINA",
   "author": {
     "name": "ada-bee"
@@ -16,7 +16,7 @@
   "preferencesPage": "ui/preferences.html",
   "preferenceDefaults": {
     "sponsorBlockEnabled": false,
-    "sponsorSegmentAction": "ask",
+    "sponsorSegmentAction": "ignore",
     "selfPromoSegmentAction": "ignore",
     "previewSegmentAction": "ignore"
   },

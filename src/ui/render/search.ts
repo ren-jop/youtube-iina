@@ -67,7 +67,7 @@ export function renderSearchResults(dependencies: SearchRenderDependencies): voi
         setElementVisibility(channelsEmptyState, false);
         setElementVisibility(channelsList, true);
 
-        searchState.channels.filter(channel => !filterReason({title:channel.title,channelTitle:channel.title})).forEach((channel) => {
+        searchState.channels.filter(channel => !filterReason({title:"",channelTitle:channel.title})).forEach((channel) => {
             const item = document.createElement("li");
             item.className = "yt-item yt-item-channel-row";
 
