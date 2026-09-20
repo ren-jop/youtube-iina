@@ -1,6 +1,8 @@
+import { isJapaneseTitle } from "../innertube/japanese";
 import { getOptions, loadLibraryData, saveLibraryData, type LocalOptions } from "./libraryData";
 const normalize = (value: string) => value.normalize("NFKC").trim().toLocaleLowerCase();
 export function filterReason(item: { title: string; channelTitle: string; durationLabel?: string }, options: LocalOptions = getOptions()): string {
+    if (options.japaneseMode && item.title && !isJapaneseTitle(item.title)) return "Not a Japanese title";
     const name = normalize(item.channelTitle), title = normalize(item.title);
     if (name && options.hiddenChannels.some(value => normalize(value) === name)) return "Hidden channel";
     if (options.excludedWords.some(value => title.includes(normalize(value)))) return "Excluded title phrase";
