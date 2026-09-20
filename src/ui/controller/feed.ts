@@ -255,7 +255,19 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
 
         let channelResults: ChannelFeedResult[] = [];
         try {
-            channelResults = await mapWithConcurrency(favoriteChannelIds, FEED_FETCH_CONCURRENCY, loadChannelFeed);
+            const completed: ChannelFeedResult[] = [];
+            const showProgressively = !state.feedState.items.length;
+            channelResults = await mapWithConcurrency(favoriteChannelIds, FEED_FETCH_CONCURRENCY, async channelId => {
+                const result = await loadChannelFeed(channelId);
+                if (refreshId !== state.feedRefreshSequence) return result;
+                completed.push(result);
+                // Show usable uploads without waiting for the slowest channel.
+                if (showProgressively && result.items.length) {
+                    const partial = await buildFinalFilteredFeedItems(mergeFeedItems(completed), FEED_ITEMS_LIMIT);
+                    if (refreshId === state.feedRefreshSequence) { state.feedState.items = partial; renderFeed(); }
+                }
+                return result;
+            });
         } catch {
             if (refreshId !== state.feedRefreshSequence) {
                 return;

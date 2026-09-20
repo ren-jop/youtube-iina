@@ -111,6 +111,7 @@ export interface UiToPluginMessagePayloads {
 }
 
 export interface PluginToUiMessagePayloads {
+    discussionVisibility: boolean;
     libraryTransferResult: string;
     playbackSwitchStatus: { stage: string; elapsedMs?: number };
     httpResponse: HttpResponsePayload | HttpResponseWirePayload;

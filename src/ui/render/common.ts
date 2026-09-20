@@ -1,3 +1,4 @@
+import { filterReason, hideChannel } from "../storage/feedFilters";
 import { whenVisible } from "./visible";
 import { reconcileList } from "./reconcile";
 import { resolveChannelName } from "../innertube/channelNames";
@@ -145,10 +146,12 @@ export function makeCardPlayable(element: HTMLElement, onActivate: () => void): 
     element.classList.add("yt-item-playable");
     element.tabIndex = 0;
     element.setAttribute("role", "button");
-    element.addEventListener("click", () => {
+    element.addEventListener("click", (event) => {
+        if ((event.target as HTMLElement)?.closest("button,a,input")) return;
         onActivate();
     });
     element.addEventListener("keydown", (event) => {
+        if (event.target !== element) return;
         if (event.key !== "Enter" && event.key !== " ") {
             return;
         }
@@ -223,6 +226,8 @@ export function createPlayableVideoListItem(dependencies: PlayableVideoListItemD
         whenVisible(channel, () => { void resolveChannelName(dependencies.videoId!).then(name => {
             if (name) dependencies.onChannelResolved?.(name);
             channel.textContent = name || "Channel unavailable";
+            updateHide();
+            if (!item.closest("[data-history-list]") && name && filterReason({title:safeTitle,channelTitle:name,durationLabel:presentation.durationLabel})) item.hidden = true;
         }); });
     }
 
@@ -230,7 +235,12 @@ export function createPlayableVideoListItem(dependencies: PlayableVideoListItemD
     stats.className = "yt-item-meta yt-item-stats";
     stats.textContent = presentation.statsLine || " ";
 
-    content.append(titleElement, channel, stats);
+    const hide = document.createElement("button");
+    hide.type = "button"; hide.className = "yt-hide-channel"; hide.textContent = "Hide channel";
+    const updateHide = () => { hide.hidden = !channel.textContent || /^(Unknown channel|Loading channel…|Channel unavailable)$/.test(channel.textContent); };
+    updateHide();
+    hide.addEventListener("click", event => { event.stopPropagation(); try { hideChannel(channel.textContent || ""); } catch { hide.textContent = "Could not save"; } });
+    content.append(titleElement, channel, stats, hide);
     item.append(content);
 
     return item;
@@ -274,7 +284,8 @@ export function renderPlayableVideoList(dependencies: RenderPlayableVideoListDep
         status.classList.toggle("yt-status-warning", Boolean(state.warning));
     }
 
-    if (state.items.length === 0) {
+    const visibleItems = list.hasAttribute("data-history-list") ? state.items : state.items.filter(item => !filterReason({...item, durationLabel: resolveItemPresentation(item).durationLabel}));
+    if (visibleItems.length === 0) {
         if (state.isLoading) {
             setElementVisibility(emptyState, false);
             setElementVisibility(list, false);
@@ -282,7 +293,7 @@ export function renderPlayableVideoList(dependencies: RenderPlayableVideoListDep
         }
 
         reconcileList(list, [], () => "", () => "", () => document.createElement("li"));
-        emptyState.textContent = state.status || defaultEmptyText;
+        emptyState.textContent = state.items.length ? "All videos hidden by your filters. Adjust Settings & data to show more." : state.status || defaultEmptyText;
         setElementVisibility(emptyState, true);
         setElementVisibility(list, false);
         return;
@@ -291,7 +302,7 @@ export function renderPlayableVideoList(dependencies: RenderPlayableVideoListDep
     setElementVisibility(emptyState, false);
     setElementVisibility(list, true);
 
-    reconcileList(list, state.items, item => item.videoId, item => JSON.stringify(resolveItemPresentation(item)), (itemData) => {
+    reconcileList(list, visibleItems, item => item.videoId, item => JSON.stringify(resolveItemPresentation(item)), (itemData) => {
         const presentation = resolveItemPresentation(itemData);
         const item = createPlayableVideoListItem({
             videoId: itemData.videoId,

@@ -19,7 +19,7 @@ export interface NavigationController {
     updateActiveViewLoadingIndicators: () => void;
 }
 
-export function createNavigationController(): NavigationController {
+export function createNavigationController(onViewChanged?: () => void): NavigationController {
     const scrollPositions = new Map<ViewName, number>();
     const getActiveView = (): ViewName => {
         return state.activeView;
@@ -78,6 +78,7 @@ export function createNavigationController(): NavigationController {
         }
 
         updateActiveViewLoadingIndicators();
+        onViewChanged?.();
     };
 
     return {

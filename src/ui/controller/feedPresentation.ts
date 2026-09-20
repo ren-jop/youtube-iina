@@ -187,7 +187,7 @@ export function resolveSearchVideoPresentation(video: SearchVideoResult, metadat
     const resolvedDurationSeconds = metadata?.durationSeconds || 0;
     return {
         thumbnailUrl: metadata?.thumbnailUrl || video.thumbnailUrl,
-        durationLabel: resolvedDurationSeconds > 0 ? formatDuration(resolvedDurationSeconds) : "",
+        durationLabel: resolvedDurationSeconds > 0 ? formatDuration(resolvedDurationSeconds) : (video.durationLabel || ""),
         channelLine: (metadata?.channelTitle || video.channelTitle || "Unknown channel").trim(),
         statsLine: buildSearchVideoStatsLine(video, metadata)
     };

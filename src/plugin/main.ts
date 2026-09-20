@@ -66,6 +66,7 @@ function showSidebarWithNotification(): void {
     if (windowClosed) return;
     sidebar.show();
     sidebarVisible = true;
+    sidebar.postMessage("discussionVisibility", true);
 
 }
 
@@ -81,6 +82,7 @@ function hideSidebar(): void {
     if (windowClosed) return;
     sidebar.hide();
     sidebarVisible = false;
+    sidebar.postMessage("discussionVisibility", false);
 }
 
 function toggleSidebarFromHotkey(): void {
@@ -153,6 +155,7 @@ event.on("iina.window-loaded", () => {
     });
 
     event.on("iina.window-will-close", () => {
+        sidebar.postMessage("discussionVisibility", false);
         windowClosed = true;
         if (playTimer !== null) clearTimeout(playTimer);
         playTimer = null;

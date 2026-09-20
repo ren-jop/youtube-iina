@@ -17,7 +17,7 @@ export function relatedFilter(payload: unknown): { selected: boolean; token: str
         const object = asObject(current);
         if (!object) continue;
         const chip = asObject(object.chipCloudChipRenderer);
-        if (chip && extractText(chip.text).trim().toLowerCase() === "related") {
+        if (chip && ["related", "関連動画", "関連"].includes(extractText(chip.text).trim().toLowerCase())) {
             const endpoint = asObject(chip.navigationEndpoint);
             return { selected: chip.isSelected === true,
                 token: asString(asObject(endpoint?.continuationCommand)?.token) };

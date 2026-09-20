@@ -61,7 +61,8 @@ function parseVideoRenderer(renderer: JsonObject): SearchVideoResult | null {
         title,
         channelTitle,
         thumbnailUrl,
-        publishedText
+        publishedText,
+        durationLabel: extractText(renderer.lengthText)
     };
 }
 
@@ -115,7 +116,7 @@ export function parseSearchResponse(payload: unknown): { channels: SearchChannel
     });
 
     for (const item of parseFeedItemsFromBrowseResponse(payload).items) {
-        videos.push({ videoId: item.videoId, title: item.title, channelTitle: item.channelTitle, thumbnailUrl: item.thumbnailUrl, publishedText: item.published });
+        videos.push({ videoId: item.videoId, title: item.title, channelTitle: item.channelTitle, thumbnailUrl: item.thumbnailUrl, publishedText: item.published, durationLabel: item.durationLabel });
     }
 
     const uniqueVideos = new Map<string, SearchVideoResult>();

@@ -11,8 +11,8 @@ export const INNERTUBE_CONFIG_TTL_MS = 10 * 60 * 1000;
 export const VIDEO_META_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
 export const HTTP_TIMEOUT_MS = 25000;
-export const SEARCH_TIMEOUT_MS = 30000;
-export const FEED_TIMEOUT_MS = 25000;
+export const SEARCH_TIMEOUT_MS = 15000;
+export const FEED_TIMEOUT_MS = 12000;
 export const AUTH_REQUEST_TIMEOUT_MS = 90000;
 
 export const FEED_ITEMS_PER_CHANNEL = 5;
