@@ -1,3 +1,5 @@
+import { getOptions } from "../storage/libraryData";
+import { translateSearchToJapanese } from "../innertube/japanese";
 import { requestPlayback } from "./playerUi";
 import { MESSAGE_NAMES } from "../../shared/messages";
 import {
@@ -333,7 +335,7 @@ export function createSearchController(dependencies: SearchControllerDependencie
     };
 
     const performSearch = async (query: string): Promise<void> => {
-        const normalizedQuery = query.trim();
+        let normalizedQuery = query.trim();
         if (state.searchState.isLoading && state.searchState.query === normalizedQuery) return;
         const requestId = ++searchRequestSequence;
 
@@ -358,6 +360,17 @@ export function createSearchController(dependencies: SearchControllerDependencie
         renderSearchResults();
 
         try {
+            if (getOptions().japaneseMode) {
+                setSearchStatus("Translating to Japanese…");
+                const translated = await translateSearchToJapanese(normalizedQuery);
+                if (requestId !== searchRequestSequence) return;
+                if (!getOptions().japaneseMode) throw new Error("Japanese mode changed. Search again.");
+                if (searchInput && searchInput.value.trim() !== normalizedQuery) return;
+                normalizedQuery = translated;
+                if (searchInput) searchInput.value = translated;
+                state.searchState.query = translated;
+                setSearchStatus("");
+            }
             const config = await getInnertubeConfig();
             const headers = buildWebInnertubeHeaders(config);
 
