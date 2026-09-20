@@ -1,3 +1,4 @@
+import { readVideoChannelId } from "./channelIdentity";
 import { readLockupMetadata } from "./lockupMetadata";
 import type {
     FeedParseDiagnostics,
@@ -137,6 +138,7 @@ function parseFeedVideoFromRenderer(renderer: JsonObject, diagnostics: FeedParse
         || extractText(asObject(tileHeaderRenderer?.thumbnailOverlayTimeStatusRenderer)?.text);
 
     return {
+        channelId: readVideoChannelId(renderer),
         videoId,
         title,
         published: publishedText,

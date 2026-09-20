@@ -11,11 +11,12 @@ await new Promise(r=>server.listen(0,'127.0.0.1',r));
 const browser=await playwright.launch(binary?{executablePath:await binary.executablePath(),args:binary.args,headless:true}:{headless:true});
 try {
  const page=await browser.newPage({viewport:{width:400,height:820}});
+ page.setDefaultTimeout(15000);
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.route('https://**/*',route=>route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><rect width="320" height="180" fill="#253447"/><circle cx="160" cy="90" r="42" fill="#455d78"/></svg>'}));
  await page.addInitScript(()=>{
   const handlers={};window.testHandlers=handlers;window.testPauseCount=0;window.testPlayCount=0;window.testRequests=[];window.testSlow=false;window.testFail=false;
-  const video=(id,title)=>({videoRenderer:{videoId:id,title:{simpleText:title},viewCountText:{simpleText:'12K views'},publishedTimeText:{simpleText:'2 days ago'},longBylineText:{simpleText:'Studio Notes'},navigationEndpoint:{watchEndpoint:{videoId:id}},thumbnail:{thumbnails:[{url:`https://i.ytimg.com/vi/${id}/hqdefault.jpg`}]}}});
+  const video=(id,title)=>({videoRenderer:{videoId:id,title:{simpleText:title},viewCountText:{simpleText:'12K views'},publishedTimeText:{simpleText:'2 days ago'},longBylineText:{runs:[{text:'Studio Notes',navigationEndpoint:{browseEndpoint:{browseId:'UC'+'a'.repeat(22)}}}]},navigationEndpoint:{watchEndpoint:{videoId:id}},thumbnail:{thumbnails:[{url:`https://i.ytimg.com/vi/${id}/hqdefault.jpg`}]}}});
   const videos=Array.from({length:20},(_,i)=>video('video'+String(i).padStart(6,'0'),['Understanding digital addiction','The science of attention','Building a calmer digital life'][i%3]));
   localStorage.setItem('yt-favorites-v1',JSON.stringify([{channelId:'UC'+'a'.repeat(22),title:'Studio Notes',thumbnailUrl:'',addedAt:new Date().toISOString()}]));
   window.iina={onMessage:(name,fn)=>handlers[name]=fn,postMessage:(name,p)=>{
@@ -26,7 +27,7 @@ try {
     window.testRequests.push(p);
     let text='{}';
     if(p.url.includes('api.mymemory.translated.net'))text=JSON.stringify({responseStatus:200,responseData:{translatedText:'ギターの練習'}});
-    else if(p.method==='GET'&&p.url.includes('oembed'))text=JSON.stringify({title:'Understanding digital addiction',author_name:'Studio Notes'});
+    else if(p.method==='GET'&&p.url.includes('oembed'))text=JSON.stringify({title:'Understanding digital addiction',author_name:'Studio Notes',author_url:'https://www.youtube.com/channel/UC'+'a'.repeat(22)});
     else if(p.method==='GET')text='"INNERTUBE_API_KEY":"test","INNERTUBE_CONTEXT_CLIENT_VERSION":"test"';
     else if(p.url.includes('/live_chat/get_live_chat'))text=JSON.stringify({continuationContents:{liveChatContinuation:{continuations:[{timedContinuationData:{continuation:'chat-next',timeoutMs:2000}}],actions:[{addChatItemAction:{item:{liveChatTextMessageRenderer:{id:'chat-one',authorName:{simpleText:'Live viewer'},message:{runs:[{text:'Hello from chat <img onerror=alert(1)>'}]}}}}}]}}});
     else if(p.url.includes('/next')&&p.body?.continuation==='comments-token')text=JSON.stringify({onResponseReceivedEndpoints:[{reloadContinuationItemsCommand:{targetId:'comments-section',continuationItems:[{commentThreadRenderer:{comment:{commentRenderer:{commentId:'comment-one',authorText:{simpleText:'A viewer'},contentText:{runs:[{text:'A thoughtful comment <script>bad()</script>'}]}}}}}]}}]});
@@ -35,7 +36,7 @@ try {
     else if(p.url.includes('/search')&&p.body?.context?.client?.hl==='ja')text=JSON.stringify({contents:[video('match000001','ギターを練習する方法'),video('match000002','ギターの弾き方'),video('english0001','Learn guitar')]});
     else if(p.url.includes('/search'))text=JSON.stringify({contents:[video('match000001','Digital addiction and attention'),video('match000002','How to quit digital addictions')]});
     else text=JSON.stringify({contents:videos});
-    setTimeout(()=>handlers.httpResponse?.({encodedResponse:encodeURIComponent(JSON.stringify({id:p.id,ok:!window.testFail,statusCode:window.testFail?503:200,text})),id:encodeURIComponent(p.id)}),window.testSlow?600:30);
+    setTimeout(()=>handlers.httpResponse?.({encodedResponse:encodeURIComponent(JSON.stringify({id:p.id,ok:!window.testFail,statusCode:window.testFail?503:200,text})),id:encodeURIComponent(p.id)}),window.testSlow || (window.testSlowRelated && p.url.includes("/next"))?600:30);
   }};
  });
  await page.goto(`http://127.0.0.1:${server.address().port}/sidebar.html`);
@@ -52,7 +53,19 @@ try {
  await page.click('[data-home-refresh]');await page.waitForTimeout(300);
  assert.equal(await page.evaluate(()=>window.firstCard===document.querySelector('[data-feed-favorites] .yt-item')),true,'network failure must retain previous feed');
  await page.evaluate(()=>window.testFail=false);
- await page.locator('[data-feed-favorites] .yt-item').first().dblclick();
+ await page.locator('[data-feed-favorites] .yt-item-channel').first().click();
+ await page.waitForSelector('[data-channel-list] .yt-item');
+ assert.equal(await page.locator('[data-channel-list] .yt-item').count(),20);
+ assert.equal(await page.evaluate(()=>window.testPlayCount),0,'channel clicks must not start playback');
+ assert.equal(await page.locator('[data-channel-title]').textContent(),'Studio Notes');
+ const channelRequests=await page.evaluate(()=>window.testRequests.length);
+ await page.click('[data-channel-back]');
+ assert.equal(await page.evaluate(()=>window.firstCard===document.querySelector('[data-feed-favorites] .yt-item')),true,'Back must retain feed cards');
+ await page.locator('[data-feed-favorites] .yt-item-channel').first().click();
+ await page.waitForSelector('[data-channel-list] .yt-item');
+ assert.equal(await page.evaluate(()=>window.testRequests.length),channelRequests,'reopening a channel must use cache');
+ await page.click('[data-channel-back]');
+ await page.locator('[data-feed-favorites] .yt-item-thumb-wrapper').first().dblclick();
  await page.waitForFunction(()=>document.querySelector('[data-history-list]')?.children.length===1);
  assert.equal(await page.locator('[data-player-bar]').count(),0,'no playback banner');
  await page.locator('[data-feed-favorites] .yt-item').first().focus();
@@ -63,9 +76,16 @@ try {
  assert.equal(await page.locator('[data-search-input]').inputValue(),'hello ','spaces still work while typing');
  assert.equal(await page.evaluate(()=>window.testPauseCount),1);
  assert.equal(await page.locator('.yt-tab.is-active').getAttribute('data-view'),'feed');
+ await page.evaluate(()=>window.testSlowRelated=true);
  await page.click('.yt-tab[data-view="related"]');
  await page.waitForSelector('[data-related-list] .yt-item');
- assert.equal(await page.locator('[data-related-list] .yt-item').count(),2,'topic search should recover an empty watch-next response');
+ assert.equal(await page.locator('[data-related-list] .yt-item').count(),8,'channel uploads appear before slow Related');
+ await page.evaluate(()=>window.relatedFirst=document.querySelector('[data-related-list] .yt-item'));
+ await page.waitForTimeout(800);
+ assert.equal(await page.locator('[data-related-list] .yt-item').count(),10,'keep room for topic matches after channel fallback');
+ assert.equal(await page.evaluate(()=>window.relatedFirst===document.querySelector('[data-related-list] .yt-item')),true,'late Related results must not move the card under the pointer');
+ await page.evaluate(()=>window.testSlowRelated=false);
+ assert.match(await page.locator('[data-related-status]').textContent(),/same channel|this channel/);
  const count=await page.evaluate(()=>window.testRequests.length);
  await page.click('.yt-tab[data-view="related"]');await page.waitForTimeout(150);
  assert.equal(await page.evaluate(()=>window.testRequests.length),count,'Related cache avoids duplicate network requests');
@@ -147,5 +167,5 @@ try {
  await page.locator('[data-japanese-topics] button').nth(1).click();
  await page.waitForFunction(()=>window.testRequests.filter(r=>r.url.includes('/search')).at(-1)?.body.query==='料理 作り方');
  assert.deepEqual(errors,[]);
- console.log('Browser checks passed: initial feed, refresh DOM retention, playback state, Related search/cache, Recent, search keyboard shortcut, settings, narrow layout, comments/chat, stale-response suppression, polling cancellation, Japanese requests, channel hiding and simple appearance and academic/Japanese coexistence.');
+ console.log('Browser checks passed: initial feed, refresh DOM retention, playback state, Related search/cache/channel fallback, in-sidebar channel browsing and Back/cache, Recent, search keyboard shortcut, settings, narrow layout, comments/chat, stale-response suppression, polling cancellation, Japanese requests, channel hiding and simple appearance and academic/Japanese coexistence.');
 } finally {await browser.close();server.close();}

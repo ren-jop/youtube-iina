@@ -1,3 +1,4 @@
+import { resolveSearchVideoPresentation } from "../src/ui/controller/feedPresentation";
 import { expect, test } from "bun:test";
 import { chatRenderer, continuation, initialCommentToken, parseChat, parseComments } from "../src/ui/parsers/discussion";
 import { filterReason } from "../src/ui/storage/feedFilters";
@@ -66,4 +67,12 @@ test("search and modern Japanese cards preserve views and publication labels", a
  const metadata=readLockupMetadata({metadata:{contentMetadataViewModel:{metadataRows:[{metadataParts:[{text:{content:"1.2万回視聴"}},{text:{content:"2日前"}}]}]}}});
  expect(metadata).toEqual({channel:"",views:"1.2万回視聴",published:"2日前"});
  expect(resolveFeedItemPresentation({videoId:"abcdefghijk",title:"動画",channelTitle:"",thumbnailUrl:"",published:metadata.published,viewCountText:metadata.views},null).statsLine).toBe("1.2万回視聴 • 2日前");
+});
+
+
+test("video metadata preserves supplied publication dates without inventing dates from view counts", () => {
+ const video = {videoId:"abcdefghijk",title:"Lecture",channelTitle:"Teacher",thumbnailUrl:"",viewCountText:"12K views",publishedText:"2026-09-15T00:00:00Z"};
+ expect(resolveSearchVideoPresentation(video,null).statsLine).toBe(`12K views • ${new Date(video.publishedText).toLocaleDateString()}`);
+ expect(resolveSearchVideoPresentation({...video,publishedText:"12K views"},null).statsLine).toBe("12K views");
+ expect(resolveSearchVideoPresentation({...video,publishedText:""},null).statsLine).toBe("12K views");
 });

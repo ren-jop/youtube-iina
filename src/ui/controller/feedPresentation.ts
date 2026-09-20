@@ -76,23 +76,6 @@ export function getPublishedTimestamp(published: string): number {
     return parseRelativeAgeToTimestamp(published);
 }
 
-function formatPublishedText(published: string): string {
-    const trimmed = published.trim();
-    if (!trimmed) {
-        return "";
-    }
-
-    if (/views?/i.test(trimmed) && !/ago|today|yesterday|streamed|premiered/i.test(trimmed)) {
-        return "";
-    }
-
-    const timestamp = getPublishedTimestamp(published);
-    if (timestamp === 0) {
-        return "";
-    }
-    return new Date(timestamp).toLocaleString();
-}
-
 function formatRelativeAge(published: string): string {
     const trimmed = published.trim();
     if (!trimmed) {
@@ -152,9 +135,18 @@ function formatDuration(durationSeconds: number): string {
     return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
+function publicationLabel(value: string): string {
+    const text = value.trim();
+    if (!text) return "";
+    // Keep an actual date when supplied; never turn an approximate age into one.
+    if (/^\d{4}-\d{2}-\d{2}/.test(text) && Number.isFinite(Date.parse(text))) return new Date(text).toLocaleDateString();
+    if (/views?|回視聴|視聴回数|回再生/i.test(text) && !/ago|today|yesterday|streamed|premiered|前|昨日|今日/i.test(text)) return "";
+    return formatRelativeAge(text) || text;
+}
+
 function buildFeedStatsLine(item: FeedVideoItem, metadata: VideoMetadata | null): string {
     const views = formatHumanReadableViews(metadata?.viewCountText || item.viewCountText || "");
-    const age = formatRelativeAge(item.published) || formatPublishedText(item.published) || item.published.trim();
+    const age = publicationLabel(item.published);
 
     return [views, age]
         .map((value) => value.trim())
@@ -164,7 +156,7 @@ function buildFeedStatsLine(item: FeedVideoItem, metadata: VideoMetadata | null)
 
 function buildSearchVideoStatsLine(video: SearchVideoResult, metadata: VideoMetadata | null): string {
     const views = formatHumanReadableViews(metadata?.viewCountText || video.viewCountText || "");
-    const age = formatRelativeAge(video.publishedText) || formatPublishedText(video.publishedText) || video.publishedText.trim();
+    const age = publicationLabel(video.publishedText);
 
     return [views, age]
         .map((value) => value.trim())

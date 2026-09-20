@@ -19,6 +19,8 @@ For future updates, the plugin's GitHub repository is `rin677/youtube-iina`.
 - Open the YouTube sidebar (Shift + Y).
 - On next open, you can use the `Resume YouTube.png` item in Recent Items to skip straight to the sidebar.
 - In anonymous mode, search and build a favorites list of channels to populate your feed.
+- Click a channel name to browse its latest uploads inside the sidebar. Back restores the previous view and scroll position.
+- Related includes topic matches and more uploads from the playing channel. Channel results can appear first while recommendations load, and revisiting a channel uses a shared three-minute cache. Japanese/Academic and other filters still apply; network failures or filters can leave no available results.
 - Optionally, authenticate to load Home and Subscriptions (see [Disclaimer](#disclaimer) about using your Google account).
 
 ## Performance and Academic focus

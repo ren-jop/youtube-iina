@@ -2,7 +2,9 @@ import { state } from "../state";
 import { MESSAGE_NAMES } from "../../shared/messages";
 import { getOptions } from "../storage/libraryData";
 import { recordDiagnostic } from "../bridge/diagnostics";
-let selected: { videoId:string;title:string } | null = null;
+export interface SelectedVideo { videoId: string; title: string; channelId?: string; channelTitle?: string }
+let selected: SelectedVideo | null = null;
+export function selectedVideo(videoId: string): SelectedVideo | null { return selected?.videoId === videoId ? selected : null; }
 let pending = "", slowTimer = 0, timeoutTimer = 0;
 function clearTimers(): void { clearTimeout(slowTimer); clearTimeout(timeoutTimer); }
 function showStatus(videoId: string, text: string): void {
@@ -19,7 +21,7 @@ export function playbackStatus(stage: string, videoId?: string): void {
     pending = "";
 }
 export function selectedVideoTitle(videoId:string): string { return selected?.videoId===videoId ? selected.title : ""; }
-export function requestPlayback(item:{videoId:string;title:string}): void {
+export function requestPlayback(item:SelectedVideo): void {
     if(!state.iinaApi || pending === item.videoId) return;
     clearTimers(); selected=item; pending=item.videoId;
     showStatus(pending,"Opening…");

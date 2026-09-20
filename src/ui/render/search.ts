@@ -76,7 +76,9 @@ export function renderSearchResults(dependencies: SearchRenderDependencies): voi
             const content = document.createElement("div");
             content.className = "yt-item-content";
 
-            const title = document.createElement("p");
+            const title = document.createElement("button");
+            title.type = "button";
+            title.addEventListener("click", () => onOpenChannel(channel));
             title.className = "yt-item-title yt-item-title-channel";
             title.textContent = channel.title;
 
@@ -125,6 +127,7 @@ export function renderSearchResults(dependencies: SearchRenderDependencies): voi
 
             const item = createPlayableVideoListItem({
                 videoId: video.videoId,
+                channelId: video.channelId,
                 onChannelResolved: name => { video.channelTitle = name; },
                 title: video.title,
                 presentation,
