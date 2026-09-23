@@ -7,12 +7,12 @@ If you like this plugin you might also be interested in [Jellyfin IINA Plugin](h
 ## Installation
 
 1. Make sure you have the [online-media plugin](https://github.com/iina/plugin-online-media) (`yt-dlp`) installed and working. Before using this plugin, confirm it works by opening and playing a video directly from a URL in IINA.
-2. Download `xyz.brbc.youtube.iinaplugin.iinaplgz` from the [latest release](https://github.com/rin677/youtube-iina/releases/latest).
+2. Download `xyz.brbc.youtube.iinaplugin.iinaplgz` from the [latest release](https://github.com/ren-jop/youtube-iina/releases/latest).
 3. Open the downloaded file to install it in IINA. If you have the original plugin installed, replace that copy; both use the same identifier.
 4. Fully quit and reopen IINA so the previous plugin instance is unloaded.
 5. Press Shift+Y. You should see the dark “YouTube for IINA” welcome image.
 
-For future updates, the plugin's GitHub repository is `rin677/youtube-iina`.
+For future updates, the plugin's GitHub repository is `ren-jop/youtube-iina`.
 
 ## Usage
 
