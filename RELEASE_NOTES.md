@@ -1,3 +1,15 @@
+## 1.2.17 — Japanese Home, subscription truth and intentional browsing
+
+- Japanese Home now targets about **50 videos** instead of 36, while keeping strict original-title filtering so English-titled uploads are not presented as Japanese.
+- Home topic chips are available in both Japanese and English. Sparse categories can fetch extra topic-specific results instead of showing only one matching card.
+- Removed the old **Academic / Focus** filter entirely.
+- Added **Japanese-only blocks** for 1, 3, 6, 12 or 24 hours, or until local midnight. While a block is active, JP mode cannot be switched off.
+- Added a configurable **daily Home discovery budget** (off / 15 / 30 / 45 / 60 minutes). Only general Home browsing counts; Search, Subscriptions, Related and channel pages remain usable.
+- When the Home budget is exhausted, a deliberate 15- or 30-minute intentional session can be opened by naming what you are there to watch.
+- Channel pages now include a real **Subscribe / Unsubscribe** control.
+- Subscription-feed items are checked against current channel subscription state so confirmed unsubscribed channels are removed.
+- Existing same-window IINA playback, comments, live chat, local history, hidden-channel rules and related-video behavior are unchanged.
+
 ## 1.2.16 — Unsubscribe fix
 
 - Fixed subscribed channels being misread as unsubscribed when YouTube nests the channel ID inside the button command.

@@ -7,11 +7,12 @@ export const DATA_KEY = "youtube-iina.library.v1";
 export const MAX_HISTORY = 5000;
 export interface LocalOptions {
     japaneseMode: boolean;
+    japaneseLockUntil: string;
+    dailyDiscoveryMinutes: number;
     qualityFilter: boolean;
     minimumMinutes: number;
     hiddenChannels: string[];
     excludedWords: string[];
-    academicMode: boolean;
     performanceVersion: number;
     opacity: number;
     playbackQuality: "auto" | "1080" | "720";
@@ -23,11 +24,14 @@ export interface LocalOptions {
 }
 export interface HistoryItem { videoId: string; title: string; channelTitle: string; playedAt: string }
 export interface LibraryData { options: LocalOptions; history: HistoryItem[] }
-export const defaultOptions: LocalOptions = { japaneseMode: false, qualityFilter: false, minimumMinutes: 0, hiddenChannels: [], excludedWords: [], academicMode: false, performanceVersion: 1, opacity: 90, playbackQuality: "1080", rememberHistory: true, resolveChannels: true, compactCards: false, showStats: true, relatedMode: "topic" };
+export const defaultOptions: LocalOptions = { japaneseMode: false, japaneseLockUntil: "", dailyDiscoveryMinutes: 30, qualityFilter: false, minimumMinutes: 0, hiddenChannels: [], excludedWords: [], performanceVersion: 1, opacity: 90, playbackQuality: "1080", rememberHistory: true, resolveChannels: true, compactCards: false, showStats: true, relatedMode: "topic" };
 export function normalizeLines(value: unknown): string[] { return Array.isArray(value) ? [...new Set(value.filter((v): v is string => typeof v === "string").map(v => v.trim().slice(0,200)).filter(Boolean))].slice(0,500) : []; }
 export function normalizeOptions(value: unknown): LocalOptions {
     const o = asObject(value);
-    return { japaneseMode: o?.japaneseMode === true, qualityFilter: o?.qualityFilter === true, minimumMinutes: typeof o?.minimumMinutes === "number" && [0,3,5,10].includes(o.minimumMinutes) ? o.minimumMinutes : 0, hiddenChannels: normalizeLines(o?.hiddenChannels), excludedWords: normalizeLines(o?.excludedWords), academicMode: o?.academicMode === true, performanceVersion: 1, opacity: typeof o?.opacity === "number" && [60,75,90,100].includes(o.opacity) ? o.opacity : 90, playbackQuality: o?.playbackQuality === "720" ? "720" : o?.performanceVersion === 1 && o?.playbackQuality === "auto" ? "auto" : "1080", rememberHistory: o?.rememberHistory !== false, resolveChannels: o?.resolveChannels !== false,
+    const japaneseLockUntil = typeof o?.japaneseLockUntil === "string" && Number.isFinite(Date.parse(o.japaneseLockUntil)) && Date.parse(o.japaneseLockUntil) > Date.now()
+        ? new Date(o.japaneseLockUntil).toISOString()
+        : "";
+    return { japaneseMode: japaneseLockUntil ? true : o?.japaneseMode === true, japaneseLockUntil, dailyDiscoveryMinutes: typeof o?.dailyDiscoveryMinutes === "number" && [0,15,30,45,60].includes(o.dailyDiscoveryMinutes) ? o.dailyDiscoveryMinutes : 30, qualityFilter: o?.qualityFilter === true, minimumMinutes: typeof o?.minimumMinutes === "number" && [0,3,5,10].includes(o.minimumMinutes) ? o.minimumMinutes : 0, hiddenChannels: normalizeLines(o?.hiddenChannels), excludedWords: normalizeLines(o?.excludedWords), performanceVersion: 1, opacity: typeof o?.opacity === "number" && [60,75,90,100].includes(o.opacity) ? o.opacity : 90, playbackQuality: o?.playbackQuality === "720" ? "720" : o?.performanceVersion === 1 && o?.playbackQuality === "auto" ? "auto" : "1080", rememberHistory: o?.rememberHistory !== false, resolveChannels: o?.resolveChannels !== false,
         compactCards: o?.compactCards === true, showStats: true, relatedMode: o?.relatedMode === "strict" ? "strict" : "topic" };
 }
 function normalizeHistory(value: unknown): HistoryItem[] {

@@ -3,6 +3,8 @@ import { newestFirst, filterSubscriptions } from "./subscriptionTools";
 import { SUBSCRIPTIONS_EMPTY_TEXT, SUBSCRIPTIONS_ITEMS_LIMIT } from "../constants";
 import { subscriptionsEmptyState, subscriptionsList, subscriptionsStatus } from "../dom";
 import { describeFeedFetchFailure } from "../innertube/feedBrowse";
+import { fetchChannelSubscriptionState } from "../innertube/subscription";
+import { mapWithConcurrency } from "../utils/async";
 import { renderSubscriptions as renderSubscriptionsView } from "../render/subscriptions";
 import { state } from "../state";
 import type { FeedFetchResult, FeedVideoItem } from "../types";
@@ -19,6 +21,8 @@ interface SubscriptionsControllerDependencies {
     };
     fetchLoggedInSubscriptionsFeed: () => Promise<FeedFetchResult>;
     buildFinalFilteredFeedItems: (items: FeedVideoItem[], limit: number) => Promise<FeedVideoItem[]>;
+    getValidTvAccessToken: () => Promise<string>;
+    refreshTvAccessToken: () => Promise<string>;
 }
 
 export interface SubscriptionsController {
@@ -27,6 +31,46 @@ export interface SubscriptionsController {
 }
 
 export function createSubscriptionsController(dependencies: SubscriptionsControllerDependencies): SubscriptionsController {
+    const subscriptionTruthCache = new Map<string, { subscribed: boolean; checkedAt: number }>();
+
+    const filterConfirmedSubscriptions = async (items: FeedVideoItem[]): Promise<FeedVideoItem[]> => {
+        const channelIds = [...new Set(
+            items.map((item) => item.channelId?.trim() || "").filter(Boolean)
+        )];
+        if (!channelIds.length) return items;
+
+        const truth = new Map<string, boolean>();
+        await mapWithConcurrency(channelIds, 4, async (channelId) => {
+            const cached = subscriptionTruthCache.get(channelId);
+            if (cached && Date.now() - cached.checkedAt < 10 * 60 * 1000) {
+                truth.set(channelId, cached.subscribed);
+                return;
+            }
+
+            try {
+                const result = await fetchChannelSubscriptionState(channelId, {
+                    isTvAuthAvailable: () => Boolean(state.tvAuthCache),
+                    getValidTvAccessToken: dependencies.getValidTvAccessToken,
+                    refreshTvAccessToken: dependencies.refreshTvAccessToken
+                });
+                if (result.isSubscribed !== null) {
+                    subscriptionTruthCache.set(channelId, {
+                        subscribed: result.isSubscribed,
+                        checkedAt: Date.now()
+                    });
+                    truth.set(channelId, result.isSubscribed);
+                }
+            } catch {
+                // Unknown state keeps the item; only confirmed non-subscriptions are removed.
+            }
+        });
+
+        return items.filter((item) => {
+            const channelId = item.channelId?.trim();
+            return !channelId || truth.get(channelId) !== false;
+        });
+    };
+
     const renderSubscriptions = (): void => {
         renderSubscriptionsView({
             appMode: state.appMode,
@@ -64,7 +108,8 @@ export function createSubscriptionsController(dependencies: SubscriptionsControl
 
         try {
             const subscriptionsResult = await dependencies.fetchLoggedInSubscriptionsFeed();
-            const items = await dependencies.buildFinalFilteredFeedItems(newestFirst(subscriptionsResult.items), SUBSCRIPTIONS_ITEMS_LIMIT);
+            const confirmedItems = await filterConfirmedSubscriptions(subscriptionsResult.items);
+            const items = await dependencies.buildFinalFilteredFeedItems(newestFirst(confirmedItems), SUBSCRIPTIONS_ITEMS_LIMIT);
             if (refreshId !== state.subscriptionsRefreshSequence) {
                 return;
             }
