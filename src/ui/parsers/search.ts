@@ -69,40 +69,46 @@ function parseVideoRenderer(renderer: JsonObject): SearchVideoResult | null {
     };
 }
 
-function collectSearchRenderers(node: unknown, channels: SearchChannelResult[], videos: SearchVideoResult[]): void {
-    const objectNode = asObject(node);
-    if (!objectNode) {
-        return;
-    }
+function collectSearchRenderers(
+    node: unknown,
+    channels: SearchChannelResult[],
+    videos: SearchVideoResult[]
+): void {
+    const stack: unknown[] = [node];
 
-    const channelRenderer = asObject(objectNode.channelRenderer);
-    if (channelRenderer) {
-        const channel = parseChannelRenderer(channelRenderer);
-        if (channel) {
-            channels.push(channel);
+    while (stack.length > 0) {
+        const current = stack.pop();
+
+        if (Array.isArray(current)) {
+            for (let index = current.length - 1; index >= 0; index -= 1) {
+                stack.push(current[index]);
+            }
+            continue;
+        }
+
+        const objectNode = asObject(current);
+        if (!objectNode) continue;
+
+        const channelRenderer = asObject(objectNode.channelRenderer);
+        if (channelRenderer) {
+            const channel = parseChannelRenderer(channelRenderer);
+            if (channel) channels.push(channel);
+        }
+
+        const videoRenderer = asObject(objectNode.videoRenderer);
+        if (videoRenderer) {
+            const video = parseVideoRenderer(videoRenderer);
+            if (video) videos.push(video);
+        }
+
+        const values = Object.values(objectNode);
+        for (let index = values.length - 1; index >= 0; index -= 1) {
+            const value = values[index];
+            if (value && typeof value === "object") {
+                stack.push(value);
+            }
         }
     }
-
-    const videoRenderer = asObject(objectNode.videoRenderer);
-    if (videoRenderer) {
-        const video = parseVideoRenderer(videoRenderer);
-        if (video) {
-            videos.push(video);
-        }
-    }
-
-    Object.values(objectNode).forEach((value) => {
-        if (Array.isArray(value)) {
-            value.forEach((entry) => {
-                collectSearchRenderers(entry, channels, videos);
-            });
-            return;
-        }
-
-        if (value && typeof value === "object") {
-            collectSearchRenderers(value, channels, videos);
-        }
-    });
 }
 
 export function parseSearchResponse(payload: unknown): { channels: SearchChannelResult[]; videos: SearchVideoResult[] } {
