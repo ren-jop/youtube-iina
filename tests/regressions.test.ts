@@ -183,6 +183,24 @@ describe('feed parsing', () => {
         expect(result.subscribeCommand?.payload.channelIds).toEqual(['target']);
         expect(result.unsubscribeCommand).toBeUndefined();
     });
+
+    test('binds renderer subscribed state to nested unsubscribe channel IDs', () => {
+        const result = parseChannelSubscriptionDetails({
+            subscribeButtonRenderer: {
+                subscribed: true,
+                onSubscribeEndpoints: [{
+                    subscribeEndpoint: { channelIds: ['target'] }
+                }],
+                onUnsubscribeEndpoints: [{
+                    unsubscribeEndpoint: { channelIds: ['target'] }
+                }]
+            }
+        }, 'target');
+
+        expect(result.isSubscribed).toBe(true);
+        expect(result.unsubscribeCommand?.apiPath).toBe('subscription/unsubscribe');
+        expect(result.unsubscribeCommand?.payload.channelIds).toEqual(['target']);
+    });
 });
 
 // Exercise the real sidebar bridge, OAuth decoder and signed-in browse path.
