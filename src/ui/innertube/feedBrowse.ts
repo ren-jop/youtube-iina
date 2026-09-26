@@ -9,6 +9,7 @@ import {
     FEED_ITEMS_PER_CHANNEL,
     FEED_TIMEOUT_MS,
     HOME_ITEMS_LIMIT,
+    JAPANESE_HOME_ITEMS_LIMIT,
     LOGGED_IN_BROWSE_MAX_PAGES,
     RELATED_ITEMS_LIMIT,
     RELATED_PREFETCH_TARGET,
@@ -349,9 +350,12 @@ export async function fetchLoggedInHomeFeed(
     // continuation so pressing Home can actually surface a different set
     // instead of simply repainting the same first page.
     const japaneseMode = getOptions().japaneseMode;
-    const target = forceRefresh
-        ? HOME_ITEMS_LIMIT * 2
+    const displayLimit = japaneseMode
+        ? JAPANESE_HOME_ITEMS_LIMIT
         : HOME_ITEMS_LIMIT;
+    const target = forceRefresh
+        ? displayLimit * 2
+        : displayLimit;
     const result = await collectFeedItemsFromBrowsePages(
         (continuation?: string) => sendTvInnertubeRequest(
             "browse",
@@ -376,10 +380,10 @@ export async function fetchLoggedInHomeFeed(
         };
     }
 
-    const minimumUsefulHome = Math.min(12, target);
+    const minimumUsefulHome = Math.min(JAPANESE_HOME_ITEMS_LIMIT, target);
     let items = result.items;
     if (items.length < minimumUsefulHome) {
-        const fallback = await fetchJapaneseHomeFallback(target - items.length);
+        const fallback = await fetchJapaneseHomeFallback(minimumUsefulHome - items.length);
         items = dedupeFeedItems([...items, ...fallback])
             .filter((item) => isJapaneseTitle(item.title))
             .slice(0, target);
@@ -390,6 +394,55 @@ export async function fetchLoggedInHomeFeed(
         failureReason: items.length > 0 ? undefined : result.failureReason,
         items
     };
+}
+
+export async function fetchHomeTopicRecommendations(
+    topicQuery: string,
+    japaneseMode: boolean,
+    limit = 12
+): Promise<FeedVideoItem[]> {
+    const normalized = topicQuery.trim();
+    if (!normalized || limit <= 0) return [];
+
+    let config: Awaited<ReturnType<typeof getInnertubeConfig>>;
+    try {
+        config = await getInnertubeConfig();
+    } catch {
+        return [];
+    }
+
+    const queries = japaneseMode
+        ? [normalized, `${normalized} おすすめ`, `${normalized} 解説`]
+        : [normalized, `${normalized} explained`];
+    const collected: FeedVideoItem[] = [];
+
+    for (const query of queries) {
+        try {
+            const response = await sendHttpRequest({
+                method: "POST",
+                url: buildInnertubeUrl("search", config.apiKey),
+                headers: buildWebInnertubeHeaders(config),
+                body: {
+                    context: { client: buildWebClientContext(config) },
+                    query
+                }
+            }, FEED_TIMEOUT_MS);
+
+            if (!response.ok || !response.text) continue;
+            const parsed = parseSearchResponse(JSON.parse(response.text));
+            collected.push(...parsed.videos
+                .filter((video) => !japaneseMode || isJapaneseTitle(video.title))
+                .map((video) => ({
+                    ...video,
+                    published: video.publishedText
+                })));
+            if (dedupeFeedItems(collected).length >= limit) break;
+        } catch {
+            // Keep already-collected topic results when one search fails.
+        }
+    }
+
+    return dedupeFeedItems(collected).slice(0, limit);
 }
 
 export async function fetchLoggedInSubscriptionsFeed(dependencies: FetchLoggedInBrowseFeedDependencies): Promise<FeedFetchResult> {
