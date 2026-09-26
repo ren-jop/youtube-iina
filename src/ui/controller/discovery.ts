@@ -9,12 +9,29 @@ export const suggestedChannels = [
 ];
 export function initializeDiscovery(navigate: (view:ViewName)=>void, search:(query:string)=>Promise<void>): void {
     const toggle = document.querySelector<HTMLInputElement>("[data-japanese-toggle]")!;
+    const academicToggle = document.querySelector<HTMLInputElement>("[data-academic-toggle]");
     const topics = document.querySelector<HTMLElement>("[data-japanese-topics]")!;
     const status = document.querySelector<HTMLElement>("[data-suggestion-status]")!;
-    const sync = () => { toggle.checked=getOptions().japaneseMode; topics.hidden=!toggle.checked; };
+    const sync = () => {
+        const options = getOptions();
+        toggle.checked = options.japaneseMode;
+        if (academicToggle) academicToggle.checked = options.academicMode;
+        topics.hidden = !toggle.checked;
+    };
     toggle.addEventListener("change", () => {
         try { const data=loadLibraryData(); data.options.japaneseMode=toggle.checked; saveLibraryData(data); document.dispatchEvent(new CustomEvent("youtube-options-changed")); }
         catch { sync(); status.textContent="Could not save language setting."; }
+    });
+    academicToggle?.addEventListener("change", () => {
+        try {
+            const data = loadLibraryData();
+            data.options.academicMode = academicToggle.checked;
+            saveLibraryData(data);
+            document.dispatchEvent(new CustomEvent("youtube-options-changed"));
+        } catch {
+            sync();
+            status.textContent = "Could not save Focus setting.";
+        }
     });
     const run = (query:string) => {
         const input=document.querySelector<HTMLInputElement>("[data-search-input]");
