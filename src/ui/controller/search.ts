@@ -1,5 +1,5 @@
 import { getOptions } from "../storage/libraryData";
-import { isLikelyJapaneseDiscoveryText, translateSearchToJapanese } from "../innertube/japanese";
+import { isJapaneseTitle, isLikelyJapaneseDiscoveryText, translateSearchToJapanese } from "../innertube/japanese";
 import { requestPlayback } from "./playerUi";
 import {
     SEARCH_CHANNELS_LIMIT,
@@ -340,14 +340,17 @@ export function createSearchController(dependencies: SearchControllerDependencie
 
         try {
             if (getOptions().japaneseMode) {
-                setSearchStatus("Translating to Japanese…");
-                const translated = await translateSearchToJapanese(normalizedQuery);
+                // Translation is only a discovery aid. Keep the user's query in
+                // the UI and request unlocalized titles so English originals can
+                // be excluded instead of appearing as translated Japanese text.
+                setSearchStatus("Searching Japanese videos…");
+                const visibleQuery = normalizedQuery;
+                const translated = await translateSearchToJapanese(visibleQuery);
                 if (requestId !== searchRequestSequence) return;
                 if (!getOptions().japaneseMode) throw new Error("Japanese mode changed. Search again.");
-                if (searchInput && searchInput.value.trim() !== normalizedQuery) return;
+                if (searchInput && searchInput.value.trim() !== visibleQuery) return;
                 normalizedQuery = translated;
-                if (searchInput) searchInput.value = translated;
-                state.searchState.query = translated;
+                state.searchState.query = visibleQuery;
                 setSearchStatus("");
             }
             const config = await getInnertubeConfig();
@@ -382,7 +385,9 @@ export function createSearchController(dependencies: SearchControllerDependencie
                 : parsed.channels;
             const candidateVideos = japaneseMode
                 ? parsed.videos.filter((video) =>
-                    isLikelyJapaneseDiscoveryText(video.title, video.channelTitle)
+                    // The title itself must be Japanese. A Japanese channel name
+                    // must not rescue an English-titled upload in JP mode.
+                    isJapaneseTitle(video.title)
                 )
                 : parsed.videos;
             const limitedChannels = candidateChannels.slice(0, SEARCH_CHANNELS_LIMIT);
