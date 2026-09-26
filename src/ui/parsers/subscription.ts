@@ -105,6 +105,44 @@ function parseInnertubeCommandFromEndpoint(
     };
 }
 
+function nodeReferencesTargetChannel(
+    node: unknown,
+    targetChannelId: string
+): boolean {
+    const target = targetChannelId.trim();
+    if (!target) return true;
+
+    const stack: unknown[] = [node];
+    while (stack.length > 0) {
+        const current = stack.pop();
+        const objectNode = asObject(current);
+        if (!objectNode) continue;
+
+        if (asString(objectNode.channelId).trim() === target) {
+            return true;
+        }
+
+        const channelIds = asArray(objectNode.channelIds)
+            .map((entry) => asString(entry).trim())
+            .filter(Boolean);
+        if (channelIds.includes(target)) {
+            return true;
+        }
+
+        Object.values(objectNode).forEach((value) => {
+            if (Array.isArray(value)) {
+                value.forEach((entry) => {
+                    if (entry && typeof entry === "object") stack.push(entry);
+                });
+            } else if (value && typeof value === "object") {
+                stack.push(value);
+            }
+        });
+    }
+
+    return false;
+}
+
 function collectChannelSubscriptionDetails(
     node: unknown,
     accumulator: ChannelSubscriptionParseAccumulator,
@@ -116,7 +154,9 @@ function collectChannelSubscriptionDetails(
     }
 
     const nodeChannelId = asString(objectNode.channelId).trim();
-    const matchesChannel = !targetChannelId || nodeChannelId === targetChannelId;
+    const matchesChannel = !targetChannelId
+        || nodeChannelId === targetChannelId
+        || (!nodeChannelId && nodeReferencesTargetChannel(objectNode, targetChannelId));
     if (typeof objectNode.subscribed === "boolean" && matchesChannel) {
         accumulator.subscribedFlags.push(objectNode.subscribed);
     }
