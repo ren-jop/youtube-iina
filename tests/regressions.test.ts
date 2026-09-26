@@ -10,6 +10,7 @@ import { exchangeTvDeviceCode, OAuthSlowDownError } from '../src/ui/auth/tvOAuth
 import { ensureHttpBridgeListener, setHttpBridgeApi } from '../src/ui/bridge/httpBridge';
 import { fetchLoggedInSubscriptionsFeed } from '../src/ui/innertube/feedBrowse';
 import {
+    isJapaneseTitle,
     isLikelyJapaneseDiscoveryText,
     parseGoogleJapaneseTranslation
 } from '../src/ui/innertube/japanese';
@@ -91,6 +92,11 @@ describe('personalized Home topics', () => {
         expect(topics.map(topic => topic.id)).not.toContain('history');
     });
 
+    test('keeps a category visible when a strict JP feed has one real match', () => {
+        const topics = deriveHomeTopics([philosophy], []);
+        expect(topics.map(topic => topic.id)).toContain('philosophy');
+    });
+
     test('topic chips filter the loaded Home feed without requiring a search', () => {
         expect(filterHomeItemsByTopic(
             [chemistry, chemistry2, football, football2],
@@ -133,6 +139,8 @@ describe('Japanese discovery', () => {
             'How to focus better',
             'Productivity Channel'
         )).toBe(false);
+        expect(isJapaneseTitle('How to focus better')).toBe(false);
+        expect(isJapaneseTitle('Rustで安全なCLIを作る')).toBe(true);
     });
 });
 
