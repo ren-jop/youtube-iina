@@ -13,6 +13,11 @@ import {
     isLikelyJapaneseDiscoveryText,
     parseGoogleJapaneseTranslation
 } from '../src/ui/innertube/japanese';
+import {
+    deriveHomeTopics,
+    filterHomeItemsByTopic,
+    rankPersonalizedHomeItems
+} from '../src/ui/controller/feedTopics';
 
 const videoId = 'abcdefghijk';
 function video(title = 'A normal upload') {
@@ -36,6 +41,79 @@ describe('HTTP bridge response handling', () => {
     test('fails explicitly on oversized responses and transport errors', () => {
         expect(normalizeHttpResponse('3', { statusCode: 200, text: 'x'.repeat(8 * 1024 * 1024 + 1) }).ok).toBe(false);
         expect(normalizeHttpResponse('4', new Error('offline')).error).toBe('offline');
+    });
+});
+
+describe('personalized Home topics', () => {
+    const chemistry = {
+        videoId: 'chemistry01',
+        title: '有機化学の反応機構をわかりやすく解説',
+        channelTitle: 'Science Lab',
+        thumbnailUrl: 'https://i.ytimg.com/vi/chemistry01/hqdefault.jpg',
+        published: '1 day ago'
+    };
+    const chemistry2 = {
+        videoId: 'chemistry02',
+        title: '分子と化学結合の基本',
+        channelTitle: 'Science Lab',
+        thumbnailUrl: 'https://i.ytimg.com/vi/chemistry02/hqdefault.jpg',
+        published: '2 days ago'
+    };
+    const football = {
+        videoId: 'football001',
+        title: 'サッカーのドリブル練習とボールコントロール',
+        channelTitle: 'Football Skills',
+        thumbnailUrl: 'https://i.ytimg.com/vi/football001/hqdefault.jpg',
+        published: '3 days ago'
+    };
+    const football2 = {
+        videoId: 'football002',
+        title: 'First touch training for midfielders',
+        channelTitle: 'Football Skills',
+        thumbnailUrl: 'https://i.ytimg.com/vi/football002/hqdefault.jpg',
+        published: '4 days ago'
+    };
+    const philosophy = {
+        videoId: 'philosophy1',
+        title: 'ニーチェの哲学を10分で理解する',
+        channelTitle: 'Ideas',
+        thumbnailUrl: 'https://i.ytimg.com/vi/philosophy1/hqdefault.jpg',
+        published: '5 days ago'
+    };
+
+    test('derives chips only from niches represented in the loaded Home feed', () => {
+        const topics = deriveHomeTopics(
+            [chemistry, chemistry2, football, football2, philosophy],
+            []
+        );
+        expect(topics.map(topic => topic.id)).toContain('chemistry');
+        expect(topics.map(topic => topic.id)).toContain('football');
+        expect(topics.map(topic => topic.id)).not.toContain('history');
+    });
+
+    test('topic chips filter the loaded Home feed without requiring a search', () => {
+        expect(filterHomeItemsByTopic(
+            [chemistry, chemistry2, football, football2],
+            'chemistry'
+        ).map(item => item.videoId)).toEqual([
+            'chemistry01',
+            'chemistry02'
+        ]);
+    });
+
+    test('recent history and preferred channels gently re-rank Home', () => {
+        const history = [{
+            videoId: 'history0001',
+            title: '化学反応を勉強する',
+            channelTitle: 'Science Lab',
+            playedAt: new Date().toISOString()
+        }];
+        const ranked = rankPersonalizedHomeItems(
+            [football, chemistry],
+            history,
+            ['Science Lab']
+        );
+        expect(ranked[0].videoId).toBe('chemistry01');
     });
 });
 
