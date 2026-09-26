@@ -10,16 +10,14 @@ export const suggestedChannels = [
 export function initializeDiscovery(navigate: (view:ViewName)=>void, search:(query:string)=>Promise<void>): void {
     const toggle = document.querySelector<HTMLInputElement>("[data-japanese-toggle]")!;
     const academicToggle = document.querySelector<HTMLInputElement>("[data-academic-toggle]");
-    const topics = document.querySelector<HTMLElement>("[data-japanese-topics]")!;
     const status = document.querySelector<HTMLElement>("[data-suggestion-status]")!;
     const sync = () => {
         const options = getOptions();
         toggle.checked = options.japaneseMode;
         if (academicToggle) academicToggle.checked = options.academicMode;
-        topics.hidden = !toggle.checked;
     };
     toggle.addEventListener("change", () => {
-        try { const data=loadLibraryData(); data.options.japaneseMode=toggle.checked; saveLibraryData(data); document.dispatchEvent(new CustomEvent("youtube-options-changed")); }
+        try { const data=loadLibraryData(); data.options.japaneseMode=toggle.checked; saveLibraryData(data); document.dispatchEvent(new CustomEvent("youtube-options-changed", { detail: "japaneseMode" })); }
         catch { sync(); status.textContent="Could not save language setting."; }
     });
     academicToggle?.addEventListener("change", () => {
@@ -27,7 +25,7 @@ export function initializeDiscovery(navigate: (view:ViewName)=>void, search:(que
             const data = loadLibraryData();
             data.options.academicMode = academicToggle.checked;
             saveLibraryData(data);
-            document.dispatchEvent(new CustomEvent("youtube-options-changed"));
+            document.dispatchEvent(new CustomEvent("youtube-options-changed", { detail: "academicMode" }));
         } catch {
             sync();
             status.textContent = "Could not save Focus setting.";
@@ -38,10 +36,6 @@ export function initializeDiscovery(navigate: (view:ViewName)=>void, search:(que
         if(input) input.value=query;
         navigate("search"); input?.blur(); void search(query);
     };
-    for (const [name,query] of [["日常","日常 vlog 日本語"],["料理","料理 作り方"],["科学","科学 解説"],["旅","日本 旅行"],["会話","日本語 日常会話"]]) {
-        const button=document.createElement("button"); button.type="button"; button.textContent=name;
-        button.addEventListener("click",()=>run(query)); topics.append(button);
-    }
     const list=document.querySelector<HTMLElement>("[data-channel-suggestions]")!;
     for(const channel of suggestedChannels) {
         const row=document.createElement("div"); row.className="yt-suggested-channel";
