@@ -1,16 +1,11 @@
 import { loadLibraryData, saveLibraryData, getOptions } from "../storage/libraryData";
 import type { ViewName } from "../types";
 
-// Public channel names are search suggestions, not unverifiable subscription IDs.
-export const suggestedChannels = [
-    {name:"Onomappu",query:"Onomappu オノマップ",description:"Everyday Japanese"},
-    {name:"Japanese Immersion with Asami",query:"Japanese Immersion with Asami 日本語",description:"Stories and listening"},
-    {name:"おさるのジョージ",query:"おさるのジョージ 公式",description:"Animated stories"}
-];
+// JP mode is discovery filtering, not a Japanese-learning onboarding flow.
 export function initializeDiscovery(navigate: (view:ViewName)=>void, search:(query:string)=>Promise<void>): void {
     const toggle = document.querySelector<HTMLInputElement>("[data-japanese-toggle]")!;
     const academicToggle = document.querySelector<HTMLInputElement>("[data-academic-toggle]");
-    const status = document.querySelector<HTMLElement>("[data-suggestion-status]")!;
+    const status = document.querySelector<HTMLElement>("[data-suggestion-status]");
     const sync = () => {
         const options = getOptions();
         toggle.checked = options.japaneseMode;
@@ -18,7 +13,7 @@ export function initializeDiscovery(navigate: (view:ViewName)=>void, search:(que
     };
     toggle.addEventListener("change", () => {
         try { const data=loadLibraryData(); data.options.japaneseMode=toggle.checked; saveLibraryData(data); document.dispatchEvent(new CustomEvent("youtube-options-changed", { detail: "japaneseMode" })); }
-        catch { sync(); status.textContent="Could not save language setting."; }
+        catch { sync(); if (status) status.textContent="Could not save language setting."; }
     });
     academicToggle?.addEventListener("change", () => {
         try {
@@ -28,21 +23,12 @@ export function initializeDiscovery(navigate: (view:ViewName)=>void, search:(que
             document.dispatchEvent(new CustomEvent("youtube-options-changed", { detail: "academicMode" }));
         } catch {
             sync();
-            status.textContent = "Could not save Focus setting.";
+            if (status) status.textContent = "Could not save Focus setting.";
         }
     });
-    const run = (query:string) => {
-        const input=document.querySelector<HTMLInputElement>("[data-search-input]");
-        if(input) input.value=query;
-        navigate("search"); input?.blur(); void search(query);
-    };
-    const list=document.querySelector<HTMLElement>("[data-channel-suggestions]")!;
-    for(const channel of suggestedChannels) {
-        const row=document.createElement("div"); row.className="yt-suggested-channel";
-        const text=document.createElement("span"); text.textContent=`${channel.name} · ${channel.description}`;
-        const button=document.createElement("button"); button.type="button"; button.textContent="Find channel";
-        button.addEventListener("click",()=>run(channel.query)); row.append(text,button); list.append(row);
-    }
-    status.textContent="Find a channel, then use Favourite or Subscribe in the results. Nothing is followed automatically.";
+    // No starter-channel suggestions: fluent users get normal Japanese
+    // discovery and recommendations rather than a language-learning funnel.
+    void navigate;
+    void search;
     document.addEventListener("youtube-options-changed",sync); sync();
 }
