@@ -7,12 +7,14 @@ import {
     FEED_FETCH_CONCURRENCY,
     FEED_ITEMS_LIMIT,
     HOME_EMPTY_TEXT,
-    HOME_ITEMS_LIMIT
+    HOME_ITEMS_LIMIT,
+    JAPANESE_HOME_ITEMS_LIMIT
 } from "../constants";
 import { feedEmptyState, feedFavoritesList, feedStatus } from "../dom";
 import {
     describeFeedFetchFailure,
     fetchChannelFeedFromInnertube,
+    fetchHomeTopicRecommendations,
     fetchLoggedInHomeFeed,
     fetchLoggedInSubscriptionsFeed as fetchLoggedInSubscriptionsFeedFromInnertube
 } from "../innertube/feedBrowse";
@@ -38,7 +40,12 @@ import {
 import { mapWithConcurrency } from "../utils/async";
 import { getOptions, loadLibraryData } from "../storage/libraryData";
 import {
+    getDiscoveryGuardSnapshot,
+    startIntentionalDiscoverySession
+} from "../storage/discoveryGuard";
+import {
     deriveHomeTopics,
+    fillHomeTopics,
     filterHomeItemsByTopic,
     homeTopicLabel,
     rankPersonalizedHomeItems,
@@ -71,6 +78,10 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
     let forceFeedRefreshRequested = false;
     let activeHomeTopicId = "all";
     let availableHomeTopics: HomeTopic[] = [];
+    const topicSupplementalItems = new Map<string, FeedVideoItem[]>();
+    let topicSupplementRequest = 0;
+    const discoveryGuardElement =
+        document.querySelector<HTMLElement>("[data-discovery-guard]");
     const feedTopicsElement =
         document.querySelector<HTMLElement>("[data-feed-topics]");
     const persistVideoMetadataCacheToStorage = (): void => {
@@ -208,6 +219,24 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
                 if (activeHomeTopicId === id) return;
                 activeHomeTopicId = id;
                 renderFeed();
+
+                if (id === "all") return;
+                const topic = availableHomeTopics.find((candidate) => candidate.id === id);
+                if (!topic) return;
+                const loaded = filterHomeItemsByTopic(state.feedState.items, id);
+                const cached = topicSupplementalItems.get(id) || [];
+                if (loaded.length + cached.length >= 8) return;
+
+                const request = ++topicSupplementRequest;
+                void fetchHomeTopicRecommendations(
+                    homeTopicLabel(topic, japaneseMode),
+                    japaneseMode,
+                    16
+                ).then((items) => {
+                    if (request !== topicSupplementRequest || activeHomeTopicId !== id) return;
+                    topicSupplementalItems.set(id, items);
+                    renderFeed();
+                });
             });
             return button;
         };
@@ -252,9 +281,12 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
             history,
             preferredChannels
         );
-        availableHomeTopics = deriveHomeTopics(
-            ranked,
-            history
+        availableHomeTopics = fillHomeTopics(
+            deriveHomeTopics(
+                ranked,
+                history
+            ),
+            7
         );
 
         if (
@@ -269,6 +301,64 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
         return ranked;
     };
 
+    const renderDiscoveryGuard = (): boolean => {
+        if (!discoveryGuardElement || state.appMode !== "logged_in") {
+            if (discoveryGuardElement) {
+                discoveryGuardElement.hidden = true;
+                discoveryGuardElement.replaceChildren();
+            }
+            return false;
+        }
+
+        const snapshot = getDiscoveryGuardSnapshot();
+        if (snapshot.limitMinutes <= 0) {
+            discoveryGuardElement.hidden = true;
+            discoveryGuardElement.replaceChildren();
+            return false;
+        }
+
+        const line = document.createElement("p");
+        line.className = "yt-empty";
+        const controls = document.createElement("div");
+        controls.className = "yt-discussion-toolbar";
+
+        if (snapshot.intentionalMinutesRemaining > 0) {
+            line.textContent = `Intentional session · about ${snapshot.intentionalMinutesRemaining} min left${snapshot.intentionalPurpose ? ` · ${snapshot.intentionalPurpose}` : ""}`;
+            discoveryGuardElement.replaceChildren(line);
+            discoveryGuardElement.hidden = false;
+            return false;
+        }
+
+        if (!snapshot.blocked) {
+            if (snapshot.remainingMinutes <= 5) {
+                line.textContent = `About ${snapshot.remainingMinutes} min of Home discovery left today.`;
+                discoveryGuardElement.replaceChildren(line);
+                discoveryGuardElement.hidden = false;
+            } else {
+                discoveryGuardElement.hidden = true;
+                discoveryGuardElement.replaceChildren();
+            }
+            return false;
+        }
+
+        line.textContent = `Daily Home discovery limit reached (${snapshot.limitMinutes} min). Search, Subscriptions, Related and channel pages still work.`;
+        for (const minutes of [15, 30]) {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.textContent = `Intentional ${minutes} min`;
+            button.addEventListener("click", () => {
+                const purpose = window.prompt("What are you opening YouTube for right now?");
+                if (!purpose?.trim()) return;
+                startIntentionalDiscoverySession(minutes, purpose);
+                renderFeed();
+            });
+            controls.append(button);
+        }
+        discoveryGuardElement.replaceChildren(line, controls);
+        discoveryGuardElement.hidden = false;
+        return true;
+    };
+
     const renderFeed = (): void => {
         const filter = document.querySelector<HTMLElement>(
             "[data-feed-filter-row]"
@@ -277,9 +367,14 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
             filter.hidden = state.appMode !== "anonymous";
         }
 
-        renderHomeTopics();
+        const discoveryBlocked = renderDiscoveryGuard();
+        if (discoveryBlocked && feedTopicsElement) {
+            feedTopicsElement.hidden = true;
+        } else {
+            renderHomeTopics();
+        }
 
-        const visibleItems = state.appMode === "anonymous"
+        const baseVisibleItems = state.appMode === "anonymous"
             ? filterSubscriptions(
                 state.feedState.items,
                 document.querySelector<HTMLInputElement>(
@@ -290,6 +385,16 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
                 state.feedState.items,
                 activeHomeTopicId
             );
+        const supplementalItems = state.appMode === "logged_in"
+            && activeHomeTopicId !== "all"
+                ? topicSupplementalItems.get(activeHomeTopicId) || []
+                : [];
+        const visibleItems = discoveryBlocked
+            ? []
+            : [...new Map(
+                [...baseVisibleItems, ...supplementalItems]
+                    .map((item) => [item.videoId, item] as const)
+            ).values()];
 
         renderFeedView({
             appMode: state.appMode,
@@ -306,9 +411,11 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
             feedEmptyNoFavoritesText:
                 FEED_EMPTY_NO_FAVORITES_TEXT,
             defaultEmptyText:
-                state.appMode === "logged_in"
+                discoveryBlocked
+                    ? "Home discovery is paused for today. Use an intentional session above, or open Search, Subscriptions, Related or a channel."
+                    : state.appMode === "logged_in"
                 && activeHomeTopicId !== "all"
-                    ? "No loaded recommendations in this topic."
+                    ? "No recommendations in this topic."
                     : (
                         document.querySelector<HTMLInputElement>(
                             "[data-feed-filter]"
@@ -364,7 +471,10 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
                         ...homeResult.items.filter(item => previousVideoIds.has(item.videoId))
                     ]
                     : homeResult.items;
-                const items = await buildFinalFilteredFeedItems(candidates, HOME_ITEMS_LIMIT);
+                const homeDisplayLimit = getOptions().japaneseMode
+                    ? JAPANESE_HOME_ITEMS_LIMIT
+                    : HOME_ITEMS_LIMIT;
+                const items = await buildFinalFilteredFeedItems(candidates, homeDisplayLimit);
                 if (refreshId !== state.feedRefreshSequence) {
                     return;
                 }
@@ -399,6 +509,7 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
 
         activeHomeTopicId = "all";
         availableHomeTopics = [];
+        topicSupplementalItems.clear();
         const favoriteChannelIds = [...new Set<string>(
             state.favorites
                 .map((favorite) => favorite.channelId.trim())
