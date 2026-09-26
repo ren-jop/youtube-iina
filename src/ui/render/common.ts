@@ -180,6 +180,7 @@ export interface PlayableVideoListItemDependencies {
     onPlay: () => void;
     itemClassName?: string;
     emptyChannelFallback?: string;
+    applyContentFilters?: boolean;
 }
 
 export function createPlayableVideoListItem(dependencies: PlayableVideoListItemDependencies): HTMLLIElement {
@@ -188,7 +189,8 @@ export function createPlayableVideoListItem(dependencies: PlayableVideoListItemD
         presentation,
         onPlay,
         itemClassName = "",
-        emptyChannelFallback = ""
+        emptyChannelFallback = "",
+        applyContentFilters = true
     } = dependencies;
 
     const item = document.createElement("li");
@@ -230,7 +232,7 @@ export function createPlayableVideoListItem(dependencies: PlayableVideoListItemD
             if (name) dependencies.onChannelResolved?.(name);
             channel.textContent = name || "Channel unavailable";
             updateHide();
-            if (!item.closest("[data-history-list]") && name && filterReason({title:safeTitle,channelTitle:name,durationLabel:presentation.durationLabel})) item.hidden = true;
+            if (applyContentFilters && !item.closest("[data-history-list]") && name && filterReason({title:safeTitle,channelTitle:name,durationLabel:presentation.durationLabel})) item.hidden = true;
         }); });
     }
 
@@ -260,6 +262,7 @@ export interface RenderPlayableVideoListDependencies {
     onPlayItem: (item: FeedVideoItem) => void;
     resolveItemPresentation: (item: FeedVideoItem) => VideoListItemPresentation;
     emptyChannelFallback?: string;
+    applyContentFilters?: boolean;
 }
 
 export function renderPlayableVideoList(dependencies: RenderPlayableVideoListDependencies): void {
@@ -272,7 +275,8 @@ export function renderPlayableVideoList(dependencies: RenderPlayableVideoListDep
         onUpdateLoadingIndicators,
         onPlayItem,
         resolveItemPresentation,
-        emptyChannelFallback = ""
+        emptyChannelFallback = "",
+        applyContentFilters = true
     } = dependencies;
 
     if (!list || !emptyState) {
@@ -288,7 +292,12 @@ export function renderPlayableVideoList(dependencies: RenderPlayableVideoListDep
         status.classList.toggle("yt-status-warning", Boolean(state.warning));
     }
 
-    const visibleItems = list.hasAttribute("data-history-list") ? state.items : state.items.filter(item => !filterReason({...item, durationLabel: resolveItemPresentation(item).durationLabel}));
+    const visibleItems = list.hasAttribute("data-history-list") || !applyContentFilters
+        ? state.items
+        : state.items.filter(item => !filterReason({
+            ...item,
+            durationLabel: resolveItemPresentation(item).durationLabel
+        }));
     if (visibleItems.length === 0) {
         if (state.isLoading) {
             setElementVisibility(emptyState, false);
@@ -315,6 +324,7 @@ export function renderPlayableVideoList(dependencies: RenderPlayableVideoListDep
             title: presentation.title,
             presentation,
             emptyChannelFallback,
+            applyContentFilters,
             onPlay: () => {
                 onPlayItem(itemData);
             }
