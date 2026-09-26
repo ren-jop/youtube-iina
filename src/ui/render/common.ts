@@ -108,9 +108,18 @@ export function createThumbnailElement(url: string, alt: string): HTMLElement {
 
     const image = document.createElement("img");
     image.className = "yt-item-thumb";
-    image.src = url;
     image.alt = alt;
     image.loading = "lazy";
+    image.setAttribute("decoding", "async");
+    image.setAttribute("fetchpriority", "low");
+
+    // WKWebView's native lazy-loading behaviour is inconsistent across macOS
+    // versions. Keep offscreen thumbnails request-free until the card is near
+    // the viewport instead of decoding dozens of images during a feed refresh.
+    whenVisible(image, () => {
+        if (!image.src) image.src = url;
+    });
+
     return image;
 }
 
