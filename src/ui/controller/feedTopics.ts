@@ -297,6 +297,21 @@ export function deriveHomeTopics(
         .map((entry) => entry.topic);
 }
 
+export function fillHomeTopics(
+    topics: HomeTopic[],
+    maxTopics = 7
+): HomeTopic[] {
+    const seen = new Set(topics.map((topic) => topic.id));
+    const filled = [...topics];
+    for (const topic of HOME_TOPICS) {
+        if (filled.length >= maxTopics) break;
+        if (seen.has(topic.id)) continue;
+        seen.add(topic.id);
+        filled.push(topic);
+    }
+    return filled.slice(0, Math.max(0, maxTopics));
+}
+
 export function filterHomeItemsByTopic(
     items: FeedVideoItem[],
     topicId: string
