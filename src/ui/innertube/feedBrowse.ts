@@ -1,4 +1,5 @@
 import { parseSearchResponse } from "../parsers/search";
+import { isLikelyJapaneseDiscoveryText } from "./japanese";
 import { getOptions } from "../storage/libraryData";
 import { currentVideoTitle, filterByTopic, relatedCards, relatedFilter } from "../parsers/related";
 import {
@@ -51,13 +52,19 @@ interface PageFetchResult {
     statusCode?: number;
 }
 
-function buildTvInnertubeHeaders(config: TvInnertubeConfig, accessToken: string): Record<string, string> {
+function buildTvInnertubeHeaders(
+    config: TvInnertubeConfig,
+    accessToken: string,
+    japaneseLocale = false
+): Record<string, string> {
     const headers: Record<string, string> = {
         "Content-Type": "application/json",
         "Origin": "https://www.youtube.com",
         "Referer": "https://www.youtube.com/tv",
         "User-Agent": TV_USER_AGENT,
-        "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Language": japaneseLocale
+            ? "ja-JP,ja;q=0.95,en;q=0.4"
+            : "en-US,en;q=0.9",
         "X-Youtube-Client-Name": TV_CLIENT_NAME_ID,
         "X-Youtube-Client-Version": config.clientVersion || TV_DEFAULT_CLIENT_VERSION,
         "Authorization": `Bearer ${accessToken}`
@@ -70,15 +77,15 @@ function buildTvInnertubeHeaders(config: TvInnertubeConfig, accessToken: string)
     return headers;
 }
 
-function buildTvClientContext(config: TvInnertubeConfig): JsonObject {
-    // Signed-in Home and Subscriptions are account views, not discovery
-    // searches. Keep their locale stable so Japanese discovery mode cannot
-    // hide or reshape the user's English subscriptions.
+function buildTvClientContext(
+    config: TvInnertubeConfig,
+    japaneseLocale = false
+): JsonObject {
     return {
         clientName: TV_CLIENT_NAME,
         clientVersion: config.clientVersion || TV_DEFAULT_CLIENT_VERSION,
-        hl: "en",
-        gl: "US"
+        hl: japaneseLocale ? "ja" : "en",
+        gl: japaneseLocale ? "JP" : "US"
     };
 }
 
@@ -177,7 +184,8 @@ async function sendTvInnertubeRequest(
     endpoint: string,
     body: JsonObject,
     timeoutMs: number,
-    dependencies: FetchLoggedInBrowseFeedDependencies
+    dependencies: FetchLoggedInBrowseFeedDependencies,
+    japaneseLocale = false
 ): Promise<PageFetchResult> {
     if (!dependencies.isTvAuthAvailable()) {
         return {
@@ -199,10 +207,17 @@ async function sendTvInnertubeRequest(
             {
                 method: "POST",
                 url: buildInnertubeUrl(endpoint, config.apiKey),
-                headers: buildTvInnertubeHeaders(config, accessToken),
+                headers: buildTvInnertubeHeaders(
+                    config,
+                    accessToken,
+                    japaneseLocale
+                ),
                 body: {
                     context: {
-                        client: buildTvClientContext(config)
+                        client: buildTvClientContext(
+                            config,
+                            japaneseLocale
+                        )
                     },
                     ...body
                 }
@@ -282,20 +297,32 @@ export async function fetchLoggedInHomeFeed(
     // A deliberate Home refresh walks deeper into the recommendation
     // continuation so pressing Home can actually surface a different set
     // instead of simply repainting the same first page.
-    const target = forceRefresh ? HOME_ITEMS_LIMIT * 3 : HOME_ITEMS_LIMIT;
+    const japaneseMode = getOptions().japaneseMode;
+    const target = japaneseMode || forceRefresh
+        ? HOME_ITEMS_LIMIT * 3
+        : HOME_ITEMS_LIMIT;
     const result = await collectFeedItemsFromBrowsePages(
         (continuation?: string) => sendTvInnertubeRequest(
             "browse",
             continuation ? { continuation } : { browseId: "FEwhat_to_watch" },
             FEED_TIMEOUT_MS,
-            dependencies
+            dependencies,
+            japaneseMode
         ),
         target,
         LOGGED_IN_BROWSE_MAX_PAGES
     );
+    const items = japaneseMode
+        ? result.items.filter((item) =>
+            isLikelyJapaneseDiscoveryText(
+                item.title,
+                item.channelTitle
+            )
+        )
+        : result.items;
     return {
         ...result,
-        items: result.items.slice(0, target)
+        items: items.slice(0, HOME_ITEMS_LIMIT)
     };
 }
 
@@ -305,7 +332,8 @@ export async function fetchLoggedInSubscriptionsFeed(dependencies: FetchLoggedIn
             "browse",
             continuation ? { continuation } : { browseId: "FEsubscriptions" },
             FEED_TIMEOUT_MS,
-            dependencies
+            dependencies,
+            false
         ),
         SUBSCRIPTIONS_ITEMS_LIMIT,
         Math.max(LOGGED_IN_BROWSE_MAX_PAGES, 10)
@@ -403,11 +431,22 @@ export async function fetchRelatedFeed(videoId: string, title = ""): Promise<Fee
     const pending = relatedPending.get(key);
     if (pending) return pending;
     const request = fetchRelatedFeedUncached(videoId, title).then(result => {
-        if (!result.failureReason && result.items.length) {
-            relatedCache.set(key, { at: Date.now(), result });
+        const filteredResult = getOptions().japaneseMode
+            ? {
+                ...result,
+                items: result.items.filter((item) =>
+                    isLikelyJapaneseDiscoveryText(
+                        item.title,
+                        item.channelTitle
+                    )
+                )
+            }
+            : result;
+        if (!filteredResult.failureReason && filteredResult.items.length) {
+            relatedCache.set(key, { at: Date.now(), result: filteredResult });
             if (relatedCache.size > 10) relatedCache.delete(relatedCache.keys().next().value!);
         }
-        return result;
+        return filteredResult;
     }).finally(() => relatedPending.delete(key));
     relatedPending.set(key, request);
     return request;
