@@ -285,8 +285,9 @@ export function deriveHomeTopics(
                     + (historyAffinity.get(topic.id) || 0)
             };
         })
-        // Never show a chip that would produce an empty/tiny fake category.
-        .filter((entry) => entry.matches >= 2)
+        // Strict JP feeds can be smaller; one real match is enough to keep a
+        // useful category visible instead of hiding the whole topic row.
+        .filter((entry) => entry.matches >= 1)
         .sort((a, b) =>
             b.score - a.score
             || b.matches - a.matches
