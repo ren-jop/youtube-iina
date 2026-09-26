@@ -191,7 +191,8 @@ test('subscription refresh retains results on failure and ignores signed-out res
     state.appMode = 'logged_in';
     state.subscriptionsState.items = oldItems;
     const refresh = controller.refreshSubscriptions();
-    await controller.refreshSubscriptions();
+    const joined = controller.refreshSubscriptions();
+    expect(joined).toBe(refresh);
     expect(calls).toBe(1);
     resolve!({ items: [], failureReason: 'http_error', statusCode: 503 });
     await refresh;

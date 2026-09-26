@@ -32,8 +32,8 @@ import {
 interface AuthControllerDependencies {
     renderFeed: () => void;
     renderSubscriptions: () => void;
-    refreshFeed: () => Promise<void>;
-    refreshSubscriptions: () => Promise<void>;
+    refreshFeed: (force?: boolean) => Promise<void>;
+    refreshSubscriptions: (force?: boolean) => Promise<void>;
     getActiveView: () => ViewName;
     setActiveView: (view: ViewName) => void;
 }
@@ -120,11 +120,11 @@ export function createAuthController(dependencies: AuthControllerDependencies): 
         dependencies.renderSubscriptions();
 
         if (mode === "logged_in") {
-            await Promise.all([dependencies.refreshFeed(), dependencies.refreshSubscriptions()]);
+            await Promise.all([dependencies.refreshFeed(true), dependencies.refreshSubscriptions(true)]);
             return;
         }
 
-        await dependencies.refreshFeed();
+        await dependencies.refreshFeed(true);
     };
 
     const refreshTvAccessToken = (): Promise<string> => {
