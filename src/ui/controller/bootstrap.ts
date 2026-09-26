@@ -174,9 +174,19 @@ export function initializeSidebar(): void {
         }
     });
 
-    document.addEventListener("youtube-options-changed", () => {
-        feedController.renderFeed(); subscriptionsController.renderSubscriptions();
-        searchController?.renderSearchResults(); relatedController.renderRelated();
+    document.addEventListener("youtube-options-changed", (event) => {
+        feedController.renderFeed();
+        subscriptionsController.renderSubscriptions();
+        searchController?.renderSearchResults();
+        relatedController.renderRelated();
+
+        const key = (event as CustomEvent<string>).detail;
+        if (
+            key === "japaneseMode"
+            && state.appMode === "logged_in"
+        ) {
+            void feedController.refreshFeed(true);
+        }
     });
     initializeDiscovery(navigationController.setActiveView, searchController.performSearch);
     initializePolish(navigationController.setActiveView);
