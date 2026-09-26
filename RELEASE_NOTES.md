@@ -1,3 +1,10 @@
+## 1.2.16 — Unsubscribe fix
+
+- Fixed subscribed channels being misread as unsubscribed when YouTube nests the channel ID inside the button command.
+- Search results now show **Unsubscribe** for subscribed channels and preserve known subscription state if a refresh fails.
+- Successful subscribe/unsubscribe calls now keep the intended state even when YouTube's mutation response omits the updated button state.
+- Includes the 1.2.15 JP discovery changes: unlocalized original titles, strict Japanese-title filtering, populated JP Home fallback recommendations, restored topic chips, and removal of Japanese-learning subscription suggestions.
+
 ## 1.2.15 — Japanese discovery cleanup
 
 - JP mode keeps YouTube titles unlocalized while still using Japan for discovery, so English originals do not masquerade as Japanese titles.
