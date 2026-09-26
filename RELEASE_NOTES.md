@@ -1,3 +1,12 @@
+## 1.2.15 — Japanese discovery cleanup
+
+- JP mode keeps YouTube titles unlocalized while still using Japan for discovery, so English originals do not masquerade as Japanese titles.
+- English search text stays unchanged in the UI. Translation is used only internally to improve discovery, then video results are filtered by the title itself.
+- Signed-in JP Home now walks deeper into recommendations and falls back to broad native-Japanese discovery when strict filtering would otherwise leave Home nearly empty.
+- Home category chips remain available with a single genuine matching recommendation instead of disappearing on smaller JP feeds.
+- Removed the Japanese-learning “Suggested subscriptions” onboarding panel; JP mode is now just Japanese content discovery.
+- Subscriptions remain language-neutral.
+
 # YouTube for IINA 1.2.14
 
 Personalized Japanese Home expansion and YouTube-style topic chips.
