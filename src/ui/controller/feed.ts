@@ -36,6 +36,14 @@ import {
     type FeedItemPresentation
 } from "./feedPresentation";
 import { mapWithConcurrency } from "../utils/async";
+import { getOptions, loadLibraryData } from "../storage/libraryData";
+import {
+    deriveHomeTopics,
+    filterHomeItemsByTopic,
+    homeTopicLabel,
+    rankPersonalizedHomeItems,
+    type HomeTopic
+} from "./feedTopics";
 
 interface FeedControllerDependencies {
     updateActiveViewLoadingIndicators: () => void;
@@ -61,6 +69,10 @@ export interface FeedController {
 
 export function createFeedController(dependencies: FeedControllerDependencies): FeedController {
     let forceFeedRefreshRequested = false;
+    let activeHomeTopicId = "all";
+    let availableHomeTopics: HomeTopic[] = [];
+    const feedTopicsElement =
+        document.querySelector<HTMLElement>("[data-feed-topics]");
     const persistVideoMetadataCacheToStorage = (): void => {
         persistVideoMetadataMapToStorage(state.videoMetadataCacheByVideoId);
     };
@@ -148,24 +160,158 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
         return resolveSearchVideoPresentationFromPresentation(video, metadata);
     };
 
+    const renderHomeTopics = (): void => {
+        if (!feedTopicsElement) return;
+
+        if (
+            state.appMode !== "logged_in"
+            || state.feedState.items.length === 0
+        ) {
+            feedTopicsElement.hidden = true;
+            feedTopicsElement.replaceChildren();
+            activeHomeTopicId = "all";
+            return;
+        }
+
+        const validIds = new Set(
+            availableHomeTopics.map((topic) => topic.id)
+        );
+        if (
+            activeHomeTopicId !== "all"
+            && !validIds.has(activeHomeTopicId)
+        ) {
+            activeHomeTopicId = "all";
+        }
+
+        const japaneseMode = getOptions().japaneseMode;
+        const buttons: HTMLButtonElement[] = [];
+
+        const makeButton = (
+            id: string,
+            label: string
+        ): HTMLButtonElement => {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "yt-feed-topic-chip";
+            button.classList.toggle(
+                "is-active",
+                activeHomeTopicId === id
+            );
+            button.textContent = label;
+            button.setAttribute(
+                "aria-pressed",
+                activeHomeTopicId === id
+                    ? "true"
+                    : "false"
+            );
+            button.addEventListener("click", () => {
+                if (activeHomeTopicId === id) return;
+                activeHomeTopicId = id;
+                renderFeed();
+            });
+            return button;
+        };
+
+        buttons.push(
+            makeButton(
+                "all",
+                japaneseMode ? "すべて" : "All"
+            )
+        );
+
+        for (const topic of availableHomeTopics) {
+            buttons.push(
+                makeButton(
+                    topic.id,
+                    homeTopicLabel(
+                        topic,
+                        japaneseMode
+                    )
+                )
+            );
+        }
+
+        feedTopicsElement.replaceChildren(...buttons);
+        feedTopicsElement.hidden = buttons.length <= 1;
+    };
+
+    const updateHomePersonalization = (
+        items: FeedVideoItem[]
+    ): FeedVideoItem[] => {
+        const history = loadLibraryData().history;
+        const ranked = rankPersonalizedHomeItems(
+            items,
+            history
+        );
+        availableHomeTopics = deriveHomeTopics(
+            ranked,
+            history
+        );
+
+        if (
+            activeHomeTopicId !== "all"
+            && !availableHomeTopics.some(
+                (topic) => topic.id === activeHomeTopicId
+            )
+        ) {
+            activeHomeTopicId = "all";
+        }
+
+        return ranked;
+    };
+
     const renderFeed = (): void => {
-        const filter = document.querySelector<HTMLElement>("[data-feed-filter-row]");
-        if (filter) filter.hidden = state.appMode !== "anonymous";
+        const filter = document.querySelector<HTMLElement>(
+            "[data-feed-filter-row]"
+        );
+        if (filter) {
+            filter.hidden = state.appMode !== "anonymous";
+        }
+
+        renderHomeTopics();
+
+        const visibleItems = state.appMode === "anonymous"
+            ? filterSubscriptions(
+                state.feedState.items,
+                document.querySelector<HTMLInputElement>(
+                    "[data-feed-filter]"
+                )?.value || ""
+            )
+            : filterHomeItemsByTopic(
+                state.feedState.items,
+                activeHomeTopicId
+            );
 
         renderFeedView({
             appMode: state.appMode,
             favoritesCount: state.favorites.length,
-            feedState: { ...state.feedState, items: state.appMode === "anonymous" ? filterSubscriptions(state.feedState.items, document.querySelector<HTMLInputElement>("[data-feed-filter]")?.value || "") : state.feedState.items },
+            feedState: {
+                ...state.feedState,
+                items: visibleItems
+            },
             elements: {
                 list: feedFavoritesList,
                 emptyState: feedEmptyState,
                 status: feedStatus
             },
-            feedEmptyNoFavoritesText: FEED_EMPTY_NO_FAVORITES_TEXT,
-            defaultEmptyText: document.querySelector<HTMLInputElement>("[data-feed-filter]")?.value.trim() ? "No loaded subscription videos match your search." : "No recent uploads found for your channels.",
-            onUpdateLoadingIndicators: dependencies.updateActiveViewLoadingIndicators,
+            feedEmptyNoFavoritesText:
+                FEED_EMPTY_NO_FAVORITES_TEXT,
+            defaultEmptyText:
+                state.appMode === "logged_in"
+                && activeHomeTopicId !== "all"
+                    ? "No loaded recommendations in this topic."
+                    : (
+                        document.querySelector<HTMLInputElement>(
+                            "[data-feed-filter]"
+                        )?.value.trim()
+                            ? "No loaded subscription videos match your search."
+                            : "No recent uploads found for your channels."
+                    ),
+            onUpdateLoadingIndicators:
+                dependencies.updateActiveViewLoadingIndicators,
             onPlayItem: playFeedItem,
-            resolveItemPresentation: resolveFeedItemPresentation
+            resolveItemPresentation:
+                resolveFeedItemPresentation
         });
     };
 
@@ -214,7 +360,10 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
                     return;
                 }
 
-                if (items.length || !homeResult.failureReason) state.feedState.items = items;
+                if (items.length || !homeResult.failureReason) {
+                    state.feedState.items =
+                        updateHomePersonalization(items);
+                }
                 state.feedState.isLoading = false;
                 state.feedState.warning = "";
                 if (homeResult.failureReason) {
@@ -239,6 +388,8 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
             return;
         }
 
+        activeHomeTopicId = "all";
+        availableHomeTopics = [];
         const favoriteChannelIds = [...new Set<string>(
             state.favorites
                 .map((favorite) => favorite.channelId.trim())
