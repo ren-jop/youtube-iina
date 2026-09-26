@@ -60,6 +60,7 @@ export interface FeedController {
 }
 
 export function createFeedController(dependencies: FeedControllerDependencies): FeedController {
+    let forceFeedRefreshRequested = false;
     const persistVideoMetadataCacheToStorage = (): void => {
         persistVideoMetadataMapToStorage(state.videoMetadataCacheByVideoId);
     };
@@ -185,6 +186,8 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
     };
 
     const refreshFeedOnce = async (): Promise<void> => {
+        const forceRefresh = forceFeedRefreshRequested;
+        forceFeedRefreshRequested = false;
         const refreshId = ++state.feedRefreshSequence;
 
         if (state.appMode === "logged_in") {
@@ -194,12 +197,19 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
             renderFeed();
 
             try {
+                const previousVideoIds = new Set(state.feedState.items.map(item => item.videoId));
                 const homeResult = await fetchLoggedInHomeFeed({
                     isTvAuthAvailable: () => Boolean(state.tvAuthCache),
                     getValidTvAccessToken: dependencies.getValidTvAccessToken,
                     refreshTvAccessToken: dependencies.refreshTvAccessToken
-                });
-                const items = await buildFinalFilteredFeedItems(homeResult.items, HOME_ITEMS_LIMIT);
+                }, forceRefresh);
+                const candidates = forceRefresh && previousVideoIds.size > 0
+                    ? [
+                        ...homeResult.items.filter(item => !previousVideoIds.has(item.videoId)),
+                        ...homeResult.items.filter(item => previousVideoIds.has(item.videoId))
+                    ]
+                    : homeResult.items;
+                const items = await buildFinalFilteredFeedItems(candidates, HOME_ITEMS_LIMIT);
                 if (refreshId !== state.feedRefreshSequence) {
                     return;
                 }
@@ -312,7 +322,11 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
         renderFeed();
     };
 
-    const refreshFeed = createRefreshQueue(refreshFeedOnce);
+    const queuedRefreshFeed = createRefreshQueue(refreshFeedOnce);
+    const refreshFeed = (force = false): Promise<void> => {
+        forceFeedRefreshRequested ||= force;
+        return queuedRefreshFeed(force);
+    };
     document.querySelector("[data-feed-filter]")?.addEventListener("input", renderFeed);
 
     return {
