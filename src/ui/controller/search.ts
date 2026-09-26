@@ -133,17 +133,14 @@ export function createSearchController(dependencies: SearchControllerDependencie
 
             return {
                 ...channel,
-                isSubscribed: subscriptionState.isSubscribed === true,
-                subscribeCommand: subscriptionState.subscribeCommand,
-                unsubscribeCommand: subscriptionState.unsubscribeCommand
+                isSubscribed: subscriptionState.isSubscribed ?? channel.isSubscribed ?? null,
+                subscribeCommand: subscriptionState.subscribeCommand || channel.subscribeCommand,
+                unsubscribeCommand: subscriptionState.unsubscribeCommand || channel.unsubscribeCommand
             };
         } catch {
-            return {
-                ...channel,
-                isSubscribed: false,
-                subscribeCommand: channel.subscribeCommand,
-                unsubscribeCommand: channel.unsubscribeCommand
-            };
+            // A failed state refresh must not turn an already-subscribed channel
+            // into "Subscribe", otherwise clicking it can never unsubscribe.
+            return channel;
         }
     };
 
