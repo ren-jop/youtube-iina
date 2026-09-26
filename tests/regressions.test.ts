@@ -9,6 +9,10 @@ import { buildFinalFilteredFeedItems } from '../src/ui/innertube/metadata';
 import { exchangeTvDeviceCode, OAuthSlowDownError } from '../src/ui/auth/tvOAuth';
 import { ensureHttpBridgeListener, setHttpBridgeApi } from '../src/ui/bridge/httpBridge';
 import { fetchLoggedInSubscriptionsFeed } from '../src/ui/innertube/feedBrowse';
+import {
+    isLikelyJapaneseDiscoveryText,
+    parseGoogleJapaneseTranslation
+} from '../src/ui/innertube/japanese';
 
 const videoId = 'abcdefghijk';
 function video(title = 'A normal upload') {
@@ -32,6 +36,25 @@ describe('HTTP bridge response handling', () => {
     test('fails explicitly on oversized responses and transport errors', () => {
         expect(normalizeHttpResponse('3', { statusCode: 200, text: 'x'.repeat(8 * 1024 * 1024 + 1) }).ok).toBe(false);
         expect(normalizeHttpResponse('4', new Error('offline')).error).toBe('offline');
+    });
+});
+
+describe('Japanese discovery', () => {
+    test('parses Google translation responses', () => {
+        expect(parseGoogleJapaneseTranslation([
+            [['猫の勉強方法', 'how to study cats', null, null]]
+        ])).toBe('猫の勉強方法');
+    });
+
+    test('keeps Japanese discovery strict without rejecting mixed Japanese titles', () => {
+        expect(isLikelyJapaneseDiscoveryText(
+            'Macで集中するための3つの方法',
+            '勉強チャンネル'
+        )).toBe(true);
+        expect(isLikelyJapaneseDiscoveryText(
+            'How to focus better',
+            'Productivity Channel'
+        )).toBe(false);
     });
 });
 
