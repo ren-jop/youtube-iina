@@ -7,6 +7,7 @@ import {
     saveLibraryData,
     parseImport,
     mergeImport,
+    resolveJapaneseLockUntil,
     type ImportedData,
     type LocalOptions
 } from "../storage/libraryData";
@@ -24,45 +25,6 @@ function japaneseLockRemaining(until: string): string {
     return `${months} month${months === 1 ? "" : "s"}`;
 }
 
-export function resolveJapaneseLockUntil(raw: string, now = new Date()): Date {
-    const start = new Date(now);
-    if (raw === "midnight") {
-        const until = new Date(start);
-        until.setHours(24, 0, 0, 0);
-        return until;
-    }
-
-    const monthMatch = /^month([1-3])$/.exec(raw);
-    if (monthMatch) {
-        const months = Number(monthMatch[1]);
-        const until = new Date(start);
-        const day = until.getDate();
-        until.setDate(1);
-        until.setMonth(until.getMonth() + months);
-        const lastDay = new Date(
-            until.getFullYear(),
-            until.getMonth() + 1,
-            0
-        ).getDate();
-        until.setDate(Math.min(day, lastDay));
-        return until;
-    }
-
-    const allowedMinutes = [
-        60,
-        180,
-        360,
-        720,
-        1440,
-        4320,
-        10080,
-        20160
-    ];
-    const minutes = allowedMinutes.includes(Number(raw))
-        ? Number(raw)
-        : 1440;
-    return new Date(start.getTime() + minutes * 60000);
-}
 
 export function applyLocalAppearance(): void {
     const options = loadLibraryData().options;
