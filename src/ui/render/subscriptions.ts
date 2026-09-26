@@ -64,6 +64,9 @@ export function renderSubscriptions(dependencies: SubscriptionsRenderDependencie
         onUpdateLoadingIndicators,
         onPlayItem,
         resolveItemPresentation,
-        emptyChannelFallback: "Unknown channel"
+        emptyChannelFallback: "Unknown channel",
+        // This is the user's actual account feed. JP/Focus discovery filters
+        // must not hide English or recreational subscriptions here.
+        applyContentFilters: false
     });
 }
