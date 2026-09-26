@@ -5,6 +5,7 @@ import { createDiscussionController } from "./discussion";
 import { renderHistory, initializePolish } from "./polish";
 import { initializeLibrary } from "./library";
 import { recordPlayedVideo } from "../storage/libraryData";
+import { recordDiscoveryActivity } from "../storage/discoveryGuard";
 import { recordDiagnostic } from "../bridge/diagnostics";
 import { initializeDiagnostics } from "../bridge/diagnostics";
 import { ensureHttpBridgeListener, setHttpBridgeApi } from "../bridge/httpBridge";
@@ -54,15 +55,47 @@ export function initializeSidebar(): void {
         }
     });
 
-    initializeChannelView(navigationController, feedController.playFeedItem, feedController.resolveFeedItemPresentation);
-
     const subscriptionsController = createSubscriptionsController({
         updateActiveViewLoadingIndicators: navigationController.updateActiveViewLoadingIndicators,
         playFeedItem: feedController.playFeedItem,
         resolveFeedItemPresentation: feedController.resolveFeedItemPresentation,
         fetchLoggedInSubscriptionsFeed: feedController.fetchLoggedInSubscriptionsFeed,
-        buildFinalFilteredFeedItems: feedController.buildFinalFilteredFeedItems
+        buildFinalFilteredFeedItems: feedController.buildFinalFilteredFeedItems,
+        getValidTvAccessToken: () => {
+            if (!authController) {
+                return Promise.reject(new Error("Auth controller unavailable."));
+            }
+            return authController.getValidTvAccessToken();
+        },
+        refreshTvAccessToken: () => {
+            if (!authController) {
+                return Promise.reject(new Error("Auth controller unavailable."));
+            }
+            return authController.refreshTvAccessToken();
+        }
     });
+
+    initializeChannelView(
+        navigationController,
+        feedController.playFeedItem,
+        feedController.resolveFeedItemPresentation,
+        {
+            getValidTvAccessToken: () => {
+                if (!authController) {
+                    return Promise.reject(new Error("Auth controller unavailable."));
+                }
+                return authController.getValidTvAccessToken();
+            },
+            refreshTvAccessToken: () => {
+                if (!authController) {
+                    return Promise.reject(new Error("Auth controller unavailable."));
+                }
+                return authController.refreshTvAccessToken();
+            },
+            refreshFeed: feedController.refreshFeed,
+            refreshSubscriptions: subscriptionsController.refreshSubscriptions
+        }
+    );
 
     let searchController: SearchController | null = null;
 
@@ -173,6 +206,18 @@ export function initializeSidebar(): void {
             void subscriptionsController.refreshSubscriptions();
         }
     });
+
+    recordDiscoveryActivity(false);
+    window.setInterval(() => {
+        const changed = recordDiscoveryActivity(
+            state.appMode === "logged_in"
+            && state.activeView === "feed"
+            && document.visibilityState !== "hidden"
+        );
+        if (changed && state.activeView === "feed") {
+            feedController.renderFeed();
+        }
+    }, 15000);
 
     document.addEventListener("youtube-options-changed", (event) => {
         feedController.renderFeed();
