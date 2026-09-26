@@ -33,6 +33,52 @@ body {
     color: var(--text-main);
 }
 
+
+.yt-feed-topics {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding: 0 0 2px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+}
+
+.yt-feed-topics::-webkit-scrollbar {
+    display: none;
+}
+
+.yt-feed-topics[hidden] {
+    display: none;
+}
+
+.yt-feed-topic-chip {
+    flex: 0 0 auto;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    padding: 7px 11px;
+    background: #333333;
+    color: #f1f1f1;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.yt-feed-topic-chip:hover {
+    background: #444444;
+}
+
+.yt-feed-topic-chip.is-active {
+    background: #ffffff;
+    color: #111111;
+}
+
+.yt-feed-topic-chip:focus-visible {
+    outline: 1px solid rgba(255, 255, 255, 0.7);
+    outline-offset: 1px;
+}
+
 .yt-feed-home {
     display: flex;
     flex-direction: column;
