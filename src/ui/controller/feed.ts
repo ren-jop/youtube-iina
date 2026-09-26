@@ -239,9 +239,18 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
         items: FeedVideoItem[]
     ): FeedVideoItem[] => {
         const history = loadLibraryData().history;
+        const preferredChannels = [
+            ...state.subscriptionsState.items.map(
+                (item) => item.channelTitle
+            ),
+            ...state.favorites.map(
+                (channel) => channel.title
+            )
+        ];
         const ranked = rankPersonalizedHomeItems(
             items,
-            history
+            history,
+            preferredChannels
         );
         availableHomeTopics = deriveHomeTopics(
             ranked,
