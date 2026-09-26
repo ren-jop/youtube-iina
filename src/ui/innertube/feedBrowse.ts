@@ -35,6 +35,7 @@ import type {
     FeedFetchFailureReason,
     FeedFetchResult,
     FeedParseDiagnostics,
+    FeedVideoItem,
     JsonObject,
     TvInnertubeConfig
 } from "../types";
@@ -141,7 +142,8 @@ function finalizeFeedFetchResult(
 async function collectFeedItemsFromBrowsePages(
     fetchPage: (continuation?: string) => Promise<PageFetchResult>,
     prefetchTarget: number,
-    maxPages: number
+    maxPages: number,
+    acceptItem?: (item: FeedVideoItem) => boolean
 ): Promise<FeedFetchResult> {
     const target = Math.max(1, prefetchTarget);
     const pageBudget = Math.max(1, maxPages);
@@ -158,8 +160,11 @@ async function collectFeedItemsFromBrowsePages(
 
         const pageParseResult = parseFeedItemsFromBrowseResponse(pageResult.payload);
         mergeFeedParseDiagnostics(diagnostics, pageParseResult.diagnostics);
-        if (pageParseResult.items.length > 0) {
-            collected.push(...pageParseResult.items);
+        const acceptedItems = acceptItem
+            ? pageParseResult.items.filter(acceptItem)
+            : pageParseResult.items;
+        if (acceptedItems.length > 0) {
+            collected.push(...acceptedItems);
         }
 
         const deduped = dedupeFeedItems(collected);
@@ -298,8 +303,8 @@ export async function fetchLoggedInHomeFeed(
     // continuation so pressing Home can actually surface a different set
     // instead of simply repainting the same first page.
     const japaneseMode = getOptions().japaneseMode;
-    const target = japaneseMode || forceRefresh
-        ? HOME_ITEMS_LIMIT * 3
+    const target = forceRefresh
+        ? HOME_ITEMS_LIMIT * 2
         : HOME_ITEMS_LIMIT;
     const result = await collectFeedItemsFromBrowsePages(
         (continuation?: string) => sendTvInnertubeRequest(
@@ -310,19 +315,19 @@ export async function fetchLoggedInHomeFeed(
             japaneseMode
         ),
         target,
-        LOGGED_IN_BROWSE_MAX_PAGES
-    );
-    const items = japaneseMode
-        ? result.items.filter((item) =>
-            isLikelyJapaneseDiscoveryText(
+        japaneseMode
+            ? Math.max(LOGGED_IN_BROWSE_MAX_PAGES, 6)
+            : LOGGED_IN_BROWSE_MAX_PAGES,
+        japaneseMode
+            ? (item) => isLikelyJapaneseDiscoveryText(
                 item.title,
                 item.channelTitle
             )
-        )
-        : result.items;
+            : undefined
+    );
     return {
         ...result,
-        items: items.slice(0, HOME_ITEMS_LIMIT)
+        items: result.items.slice(0, target)
     };
 }
 
