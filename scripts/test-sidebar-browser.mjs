@@ -44,6 +44,15 @@ try {
  assert.equal(await page.locator('[data-feed-favorites] .yt-item').count(),5);
  assert.match(await page.locator('[data-feed-favorites] .yt-item-stats').first().textContent(),/12K views.*2d ago/);
  assert.equal(await page.locator('[data-feed-favorites] .yt-item-stats').first().isVisible(),true);
+ await page.fill('[data-feed-filter]','science Studio');
+ assert.equal(await page.locator('[data-feed-favorites] .yt-item').count(),2,'local search matches channel and title');
+ await page.fill('[data-feed-filter]','no-matching-upload');
+ assert.equal(await page.locator('[data-feed-favorites] .yt-item').count(),0);
+ assert.match(await page.locator('[data-feed-empty]').textContent(),/match your search/);
+ await page.click('[data-home-refresh]');
+ assert.equal(await page.inputValue('[data-feed-filter]'),'','Home clears scoped search');
+ await page.waitForSelector('[data-feed-favorites] .yt-item');
+ await page.waitForTimeout(250);
  await page.evaluate(()=>{window.firstCard=document.querySelector('[data-feed-favorites] .yt-item');window.testSlow=true;});
  await page.click('[data-home-refresh]');
  assert.equal(await page.evaluate(()=>window.firstCard===document.querySelector('[data-feed-favorites] .yt-item')),true,'refresh must preserve card DOM');

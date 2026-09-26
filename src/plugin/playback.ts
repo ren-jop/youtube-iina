@@ -5,7 +5,7 @@ export function handlePlayItem(data: PlayItemPayload): boolean {
     try {
         if (data.quality === "1080" || data.quality === "720") {
             const height = data.quality;
-            iina.mpv.set("ytdl-format", `bestvideo[height<=${height}][vcodec^=avc1]+bestaudio/best[height<=${height}]/bestvideo[height<=${height}]+bestaudio/best[height<=${height}]`);
+            iina.mpv.set("ytdl-format", `bestvideo[height<=${height}][vcodec^=avc1]+bestaudio/best[height<=${height}]/bestvideo[height<=${height}]+bestaudio/best[height<=${height}]/best`);
         } else if (data.quality === "auto") {
             iina.mpv.set("ytdl-format", "bestvideo+bestaudio/best");
         }
@@ -26,6 +26,10 @@ export function handlePlayItem(data: PlayItemPayload): boolean {
     if (added === false) return false;
     iina.playlist.play(0);
     // Match the old replace behavior: don't autoplay the previous video at EOF.
-    iina.mpv.command("playlist-clear", []);
+    try {
+        iina.mpv.command("playlist-clear", []);
+    } catch {
+        iina.console.warn("YouTube: video selected, but previous playlist entries could not be cleared");
+    }
     return true;
 }

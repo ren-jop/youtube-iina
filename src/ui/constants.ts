@@ -16,19 +16,19 @@ export const FEED_TIMEOUT_MS = 12000;
 export const AUTH_REQUEST_TIMEOUT_MS = 90000;
 
 export const FEED_ITEMS_PER_CHANNEL = 5;
-export const FEED_ITEMS_LIMIT = 20;
+export const FEED_ITEMS_LIMIT = 100;
 export const FEED_FETCH_CONCURRENCY = 3;
 export const META_FETCH_CONCURRENCY = 3;
 export const CHANNEL_VIDEOS_TAB_PARAMS_CANDIDATES = ["EgZ2aWRlb3M=", "EgZ2aWRlb3M%3D"] as const;
 export const MAX_VIDEO_META_CACHE_ENTRIES = 1000;
 
 export const HOME_ITEMS_LIMIT = 20;
-export const SUBSCRIPTIONS_ITEMS_LIMIT = 20;
+export const SUBSCRIPTIONS_ITEMS_LIMIT = 100;
 export const RELATED_ITEMS_LIMIT = 20;
 export const HOME_PREFETCH_TARGET = 20;
 export const SUBSCRIPTIONS_PREFETCH_TARGET = 20;
 export const RELATED_PREFETCH_TARGET = 20;
-export const CHANNEL_PREFETCH_TARGET = 20;
+export const CHANNEL_PREFETCH_TARGET = 5;
 export const LOGGED_IN_BROWSE_MAX_PAGES = 4;
 export const CHANNEL_BROWSE_MAX_PAGES = 4;
 

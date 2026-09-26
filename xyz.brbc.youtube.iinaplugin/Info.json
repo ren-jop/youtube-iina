@@ -1,9 +1,9 @@
 {
   "name": "YouTube",
   "identifier": "xyz.brbc.youtube",
-  "version": "1.2.11",
-  "ghRepo": "rin677/youtube-iina",
-  "ghVersion": 14,
+  "version": "1.2.12",
+  "ghRepo": "ren-jop/youtube-iina",
+  "ghVersion": 15,
   "description": "Browse and play YouTube videos in IINA",
   "author": {
     "name": "ada-bee"

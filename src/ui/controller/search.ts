@@ -48,8 +48,8 @@ import { mapWithConcurrency } from "../utils/async";
 
 interface SearchControllerDependencies {
     updateActiveViewLoadingIndicators: () => void;
-    refreshFeed: () => Promise<void>;
-    refreshSubscriptions: () => Promise<void>;
+    refreshFeed: (force?: boolean) => Promise<void>;
+    refreshSubscriptions: (force?: boolean) => Promise<void>;
     getValidTvAccessToken: () => Promise<string>;
     refreshTvAccessToken: () => Promise<string>;
     renderFavorites: () => void;
@@ -423,13 +423,15 @@ export function createSearchController(dependencies: SearchControllerDependencie
         setSearchStatus(SEARCH_IDLE_STATUS_TEXT);
         renderSearchResults();
 
-        if (state.feedState.isLoading) return;
+        const content = document.querySelector<HTMLElement>(".yt-content");
+        if (content) content.scrollTop = 0;
+        document.querySelectorAll<HTMLInputElement>("[data-feed-filter],[data-subscriptions-filter]").forEach(input => { input.value = ""; });
         if (state.appMode === "logged_in") {
-            await Promise.all([dependencies.refreshFeed(), dependencies.refreshSubscriptions()]);
+            await Promise.all([dependencies.refreshFeed(true), dependencies.refreshSubscriptions(true)]);
             return;
         }
 
-        await dependencies.refreshFeed();
+        await dependencies.refreshFeed(true);
     };
 
     return {

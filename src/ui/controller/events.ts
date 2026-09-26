@@ -21,6 +21,7 @@ export function createEventsController(dependencies: EventsControllerDependencie
         tabs.forEach((tab) => {
             tab.addEventListener("click", () => {
                 const viewName = tab.dataset.view;
+                if (viewName === "feed") { void dependencies.goHomeAndRefresh(); return; }
                 if (viewName === "feed" || viewName === "subscriptions" || viewName === "favorites" || viewName === "related" || viewName === "history" || viewName === "comments" || viewName === "chat") {
                     dependencies.setActiveView(viewName);
                 }

@@ -120,3 +120,9 @@ test('optional quality errors do not block same-window playback',()=>{
  let played=-1;globalThis.iina={console:{warn(){}},core:{status:{idle:false}},playlist:{count:()=>1,add:()=>true,play:(index:number)=>played=index},mpv:{set(){throw Error('unsupported option');},command(){}}} as any;
  expect(handlePlayItem({videoId:'abcdefghijk',url:'',quality:'1080'})).toBe(true);expect(played).toBe(0);
 });
+
+test('playlist cleanup failure does not report a successfully selected video as failed',()=>{
+ let played=-1,format='';globalThis.iina={console:{warn(){}},core:{status:{idle:false}},playlist:{count:()=>1,add:()=>true,play:(index:number)=>played=index},mpv:{set:(_:string,value:string)=>format=value,command(){throw Error('cleanup unavailable');}}} as any;
+ expect(handlePlayItem({videoId:'abcdefghijk',url:'',quality:'720'})).toBe(true);
+ expect(played).toBe(0);expect(format.endsWith('/best')).toBe(true);
+});

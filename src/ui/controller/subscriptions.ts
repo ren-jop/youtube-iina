@@ -1,3 +1,5 @@
+import { createRefreshQueue } from "../utils/refreshQueue";
+import { newestFirst, filterSubscriptions } from "./subscriptionTools";
 import { SUBSCRIPTIONS_EMPTY_TEXT, SUBSCRIPTIONS_ITEMS_LIMIT } from "../constants";
 import { subscriptionsEmptyState, subscriptionsList, subscriptionsStatus } from "../dom";
 import { describeFeedFetchFailure } from "../innertube/feedBrowse";
@@ -21,20 +23,20 @@ interface SubscriptionsControllerDependencies {
 
 export interface SubscriptionsController {
     renderSubscriptions: () => void;
-    refreshSubscriptions: () => Promise<void>;
+    refreshSubscriptions: (force?: boolean) => Promise<void>;
 }
 
 export function createSubscriptionsController(dependencies: SubscriptionsControllerDependencies): SubscriptionsController {
     const renderSubscriptions = (): void => {
         renderSubscriptionsView({
             appMode: state.appMode,
-            subscriptionsState: state.subscriptionsState,
+            subscriptionsState: { ...state.subscriptionsState, items: filterSubscriptions(state.subscriptionsState.items, document.querySelector<HTMLInputElement>("[data-subscriptions-filter]")?.value || "") },
             elements: {
                 list: subscriptionsList,
                 emptyState: subscriptionsEmptyState,
                 status: subscriptionsStatus
             },
-            subscriptionsEmptyText: SUBSCRIPTIONS_EMPTY_TEXT,
+            subscriptionsEmptyText: document.querySelector<HTMLInputElement>("[data-subscriptions-filter]")?.value.trim() ? "No loaded subscription videos match your search." : SUBSCRIPTIONS_EMPTY_TEXT,
             signInEmptyText: "Sign in to load subscriptions.",
             onUpdateLoadingIndicators: dependencies.updateActiveViewLoadingIndicators,
             onPlayItem: dependencies.playFeedItem,
@@ -42,7 +44,7 @@ export function createSubscriptionsController(dependencies: SubscriptionsControl
         });
     };
 
-    const refreshSubscriptions = async (): Promise<void> => {
+    const refreshSubscriptionsOnce = async (): Promise<void> => {
         if (state.subscriptionsState.isLoading) return;
         const refreshId = ++state.subscriptionsRefreshSequence;
 
@@ -62,7 +64,7 @@ export function createSubscriptionsController(dependencies: SubscriptionsControl
 
         try {
             const subscriptionsResult = await dependencies.fetchLoggedInSubscriptionsFeed();
-            const items = await dependencies.buildFinalFilteredFeedItems(subscriptionsResult.items, SUBSCRIPTIONS_ITEMS_LIMIT);
+            const items = await dependencies.buildFinalFilteredFeedItems(newestFirst(subscriptionsResult.items), SUBSCRIPTIONS_ITEMS_LIMIT);
             if (refreshId !== state.subscriptionsRefreshSequence) {
                 return;
             }
@@ -94,6 +96,9 @@ export function createSubscriptionsController(dependencies: SubscriptionsControl
             renderSubscriptions();
         }
     };
+
+    const refreshSubscriptions = createRefreshQueue(refreshSubscriptionsOnce);
+    document.querySelector("[data-subscriptions-filter]")?.addEventListener("input", renderSubscriptions);
 
     return {
         renderSubscriptions,

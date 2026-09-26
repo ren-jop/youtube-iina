@@ -1,3 +1,5 @@
+import { createRefreshQueue } from "../utils/refreshQueue";
+import { newestFirst, filterSubscriptions } from "./subscriptionTools";
 import { requestPlayback } from "./playerUi";
 import { MESSAGE_NAMES } from "../../shared/messages";
 import {
@@ -29,7 +31,6 @@ import type {
     VideoMetadata
 } from "../types";
 import {
-    getPublishedTimestamp,
     resolveFeedItemPresentation as resolveFeedItemPresentationFromPresentation,
     resolveSearchVideoPresentation as resolveSearchVideoPresentationFromPresentation,
     type FeedItemPresentation
@@ -43,7 +44,7 @@ interface FeedControllerDependencies {
 }
 
 export interface FeedController {
-    refreshFeed: () => Promise<void>;
+    refreshFeed: (force?: boolean) => Promise<void>;
     renderFeed: () => void;
     playFeedItem: (item: FeedVideoItem) => void;
     resolveFeedItemPresentation: (item: FeedVideoItem) => FeedItemPresentation;
@@ -129,15 +130,7 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
             });
         });
 
-        return [...deduped.values()]
-            .sort((left, right) => {
-                const dateDelta = getPublishedTimestamp(right.published) - getPublishedTimestamp(left.published);
-                if (dateDelta !== 0) {
-                    return dateDelta;
-                }
-                return left.videoId.localeCompare(right.videoId);
-            })
-            .slice(0, FEED_ITEMS_LIMIT);
+        return newestFirst([...deduped.values()]).slice(0, FEED_ITEMS_LIMIT);
     };
 
     const resolveFeedItemPresentation = (itemData: FeedVideoItem): FeedItemPresentation => {
@@ -155,17 +148,20 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
     };
 
     const renderFeed = (): void => {
+        const filter = document.querySelector<HTMLElement>("[data-feed-filter-row]");
+        if (filter) filter.hidden = state.appMode !== "anonymous";
+
         renderFeedView({
             appMode: state.appMode,
             favoritesCount: state.favorites.length,
-            feedState: state.feedState,
+            feedState: { ...state.feedState, items: state.appMode === "anonymous" ? filterSubscriptions(state.feedState.items, document.querySelector<HTMLInputElement>("[data-feed-filter]")?.value || "") : state.feedState.items },
             elements: {
                 list: feedFavoritesList,
                 emptyState: feedEmptyState,
                 status: feedStatus
             },
             feedEmptyNoFavoritesText: FEED_EMPTY_NO_FAVORITES_TEXT,
-            defaultEmptyText: "No recent uploads found for your channels.",
+            defaultEmptyText: document.querySelector<HTMLInputElement>("[data-feed-filter]")?.value.trim() ? "No loaded subscription videos match your search." : "No recent uploads found for your channels.",
             onUpdateLoadingIndicators: dependencies.updateActiveViewLoadingIndicators,
             onPlayItem: playFeedItem,
             resolveItemPresentation: resolveFeedItemPresentation
@@ -188,7 +184,7 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
         });
     };
 
-    const refreshFeed = async (): Promise<void> => {
+    const refreshFeedOnce = async (): Promise<void> => {
         const refreshId = ++state.feedRefreshSequence;
 
         if (state.appMode === "logged_in") {
@@ -315,6 +311,9 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
 
         renderFeed();
     };
+
+    const refreshFeed = createRefreshQueue(refreshFeedOnce);
+    document.querySelector("[data-feed-filter]")?.addEventListener("input", renderFeed);
 
     return {
         refreshFeed,

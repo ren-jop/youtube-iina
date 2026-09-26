@@ -125,6 +125,7 @@ export function initializeSidebar(): void {
     const eventsController = createEventsController({
         setActiveView: (view) => {
             navigationController.setActiveView(view);
+            if (view === "subscriptions") void subscriptionsController.refreshSubscriptions(true);
             if (view === "related") void relatedController.refreshRelated();
         },
         performSearch: searchController.performSearch,
