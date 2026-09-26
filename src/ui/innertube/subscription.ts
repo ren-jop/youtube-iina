@@ -48,7 +48,7 @@ function buildTvClientContext(config: TvInnertubeConfig): JsonObject {
     return {
         clientName: TV_CLIENT_NAME,
         clientVersion: config.clientVersion || TV_DEFAULT_CLIENT_VERSION,
-        hl: getOptions().japaneseMode ? "ja" : "en",
+        hl: "en",
         gl: getOptions().japaneseMode ? "JP" : "US"
     };
 }
@@ -144,5 +144,17 @@ export async function executeChannelSubscriptionCommand(
         : [];
     const targetChannelId = asString(channelIds[0]).trim();
 
-    return parseChannelSubscriptionDetails(payload, targetChannelId);
+    const parsed = parseChannelSubscriptionDetails(payload, targetChannelId);
+
+    // Subscription mutation responses are not required to echo the complete
+    // button state. The endpoint itself is authoritative for the action that
+    // just succeeded, so do not let an empty/stale response flip the UI back.
+    if (apiPath === "subscription/unsubscribe") {
+        return { ...parsed, isSubscribed: false };
+    }
+    if (apiPath === "subscription/subscribe") {
+        return { ...parsed, isSubscribed: true };
+    }
+
+    return parsed;
 }
