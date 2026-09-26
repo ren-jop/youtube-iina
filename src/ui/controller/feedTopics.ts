@@ -176,7 +176,8 @@ function topicAffinityFromHistory(
 
 export function rankPersonalizedHomeItems(
     items: FeedVideoItem[],
-    history: HistoryItem[]
+    history: HistoryItem[],
+    preferredChannelTitles: string[] = []
 ): FeedVideoItem[] {
     if (items.length < 2 || history.length === 0) {
         return items;
@@ -186,6 +187,13 @@ export function rankPersonalizedHomeItems(
         topicAffinityFromHistory(history);
     const channelAffinity =
         new Map<string, number>();
+    const preferredChannels = new Set(
+        preferredChannelTitles
+            .map((title) =>
+                title.trim().toLocaleLowerCase()
+            )
+            .filter(Boolean)
+    );
 
     history.slice(0, 160).forEach((item, index) => {
         const channel = item.channelTitle
@@ -209,6 +217,13 @@ export function rankPersonalizedHomeItems(
             let score =
                 (channelAffinity.get(channel) || 0)
                 * 2.4;
+
+            if (
+                channel
+                && preferredChannels.has(channel)
+            ) {
+                score += 1.8;
+            }
 
             for (const topic of HOME_TOPICS) {
                 if (homeTopicMatches(
