@@ -1,5 +1,5 @@
 import { parseSearchResponse } from "../parsers/search";
-import { isLikelyJapaneseDiscoveryText } from "./japanese";
+import { isJapaneseTitle } from "./japanese";
 import { getOptions } from "../storage/libraryData";
 import { currentVideoTitle, filterByTopic, relatedCards, relatedFilter } from "../parsers/related";
 import {
@@ -63,9 +63,9 @@ function buildTvInnertubeHeaders(
         "Origin": "https://www.youtube.com",
         "Referer": "https://www.youtube.com/tv",
         "User-Agent": TV_USER_AGENT,
-        "Accept-Language": japaneseLocale
-            ? "ja-JP,ja;q=0.95,en;q=0.4"
-            : "en-US,en;q=0.9",
+        // Keep titles unlocalized. Japanese mode selects the JP region while
+        // strict title filtering decides what is allowed into the feed.
+        "Accept-Language": "en-US,en;q=0.9,ja;q=0.6",
         "X-Youtube-Client-Name": TV_CLIENT_NAME_ID,
         "X-Youtube-Client-Version": config.clientVersion || TV_DEFAULT_CLIENT_VERSION,
         "Authorization": `Bearer ${accessToken}`
@@ -85,7 +85,7 @@ function buildTvClientContext(
     return {
         clientName: TV_CLIENT_NAME,
         clientVersion: config.clientVersion || TV_DEFAULT_CLIENT_VERSION,
-        hl: japaneseLocale ? "ja" : "en",
+        hl: "en",
         gl: japaneseLocale ? "JP" : "US"
     };
 }
@@ -295,6 +295,52 @@ export function describeFeedFetchFailure(reason: FeedFetchFailureReason | undefi
     return mapFeedFailureToMessage(reason, fallback);
 }
 
+async function fetchJapaneseHomeFallback(limit: number): Promise<FeedVideoItem[]> {
+    const target = Math.max(0, limit);
+    if (target === 0) return [];
+
+    let config: Awaited<ReturnType<typeof getInnertubeConfig>>;
+    try {
+        config = await getInnertubeConfig();
+    } catch {
+        return [];
+    }
+
+    // Broad native-Japanese discovery seeds, not language-learning suggestions.
+    // This only fills Home when strict filtering leaves the personalized feed sparse.
+    const queries = ["おすすめ", "話題の動画", "人気動画", "最新"];
+    const collected: FeedVideoItem[] = [];
+
+    for (const query of queries) {
+        try {
+            const response = await sendHttpRequest({
+                method: "POST",
+                url: buildInnertubeUrl("search", config.apiKey),
+                headers: buildWebInnertubeHeaders(config),
+                body: {
+                    context: { client: buildWebClientContext(config) },
+                    query
+                }
+            }, FEED_TIMEOUT_MS);
+
+            if (!response.ok || !response.text) continue;
+            const parsed = parseSearchResponse(JSON.parse(response.text));
+            collected.push(...parsed.videos
+                .filter((video) => isJapaneseTitle(video.title))
+                .map((video) => ({
+                    ...video,
+                    published: video.publishedText
+                })));
+
+            if (dedupeFeedItems(collected).length >= target) break;
+        } catch {
+            // Keep any already-collected Home recommendations.
+        }
+    }
+
+    return dedupeFeedItems(collected).slice(0, target);
+}
+
 export async function fetchLoggedInHomeFeed(
     dependencies: FetchLoggedInBrowseFeedDependencies,
     forceRefresh = false
@@ -316,18 +362,33 @@ export async function fetchLoggedInHomeFeed(
         ),
         target,
         japaneseMode
-            ? Math.max(LOGGED_IN_BROWSE_MAX_PAGES, 6)
+            ? Math.max(LOGGED_IN_BROWSE_MAX_PAGES, 10)
             : LOGGED_IN_BROWSE_MAX_PAGES,
         japaneseMode
-            ? (item) => isLikelyJapaneseDiscoveryText(
-                item.title,
-                item.channelTitle
-            )
+            ? (item) => isJapaneseTitle(item.title)
             : undefined
     );
+
+    if (!japaneseMode) {
+        return {
+            ...result,
+            items: result.items.slice(0, target)
+        };
+    }
+
+    const minimumUsefulHome = Math.min(12, target);
+    let items = result.items;
+    if (items.length < minimumUsefulHome) {
+        const fallback = await fetchJapaneseHomeFallback(target - items.length);
+        items = dedupeFeedItems([...items, ...fallback])
+            .filter((item) => isJapaneseTitle(item.title))
+            .slice(0, target);
+    }
+
     return {
         ...result,
-        items: result.items.slice(0, target)
+        failureReason: items.length > 0 ? undefined : result.failureReason,
+        items
     };
 }
 
@@ -440,10 +501,7 @@ export async function fetchRelatedFeed(videoId: string, title = ""): Promise<Fee
             ? {
                 ...result,
                 items: result.items.filter((item) =>
-                    isLikelyJapaneseDiscoveryText(
-                        item.title,
-                        item.channelTitle
-                    )
+                    isJapaneseTitle(item.title)
                 )
             }
             : result;
