@@ -84,7 +84,9 @@ export function initializeChannelView(
         try {
             const resolved = await fetchChannelSubscriptionState(currentChannelId, authDependencies);
             if (request !== sequence) return;
-            subscriptionState = resolved;
+            subscriptionState = resolved.isSubscribed === null && subscriptionState?.isSubscribed !== null
+                ? { ...subscriptionState, ...resolved, isSubscribed: subscriptionState?.isSubscribed ?? null }
+                : resolved;
         } catch {
             if (request !== sequence) return;
             subscriptionState = { isSubscribed: null };
@@ -147,6 +149,9 @@ export function initializeChannelView(
             channel.items = result.items;
             channel.status = "";
             if (title) title.textContent = result.title;
+            if (state.subscriptionsState.items.some((item) => item.channelId === result.channelId)) {
+                subscriptionState = { isSubscribed: true };
+            }
             render();
             void hydrateSubscription(request);
         }).catch(error => {
