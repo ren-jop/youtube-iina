@@ -102,7 +102,7 @@ export function renderSearchResults(dependencies: SearchRenderDependencies): voi
                     onToggleFavorite(channel);
                 },
                 inactiveLabel: isLoggedIn ? "Subscribe" : "Favourite",
-                activeLabel: isLoggedIn ? "Subscribed" : "Favourited"
+                activeLabel: isLoggedIn ? "Unsubscribe" : "Favourited"
             });
 
             actions.append(favoriteButton);
