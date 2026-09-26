@@ -1,3 +1,22 @@
+# YouTube for IINA 1.2.14
+
+Personalized Japanese Home expansion and YouTube-style topic chips.
+
+- Signed-in Home remains YouTube's own personalized `FEwhat_to_watch` feed rather than replacing recommendations with searches.
+- Japanese Home now keeps walking recommendation continuations until it has a useful number of Japanese-language candidates, instead of filtering a small first page down to only a handful of videos.
+- Home now keeps up to 36 recommendations.
+- Local recent viewing history gently re-ranks YouTube's recommendations toward niches and channels you actually watch. Loaded subscribed/favourite channel names receive a small additional boost; YouTube's own ordering remains the primary signal.
+- The Home feed now shows YouTube-style topic chips derived from the content that is actually present in your personalized Home plus your recent interests. Examples include Philosophy, Chemistry, Science, Mathematics, Football technique, Programming and Study & learning.
+- In Japanese mode those chips use Japanese labels such as 哲学, 化学 and サッカー技術.
+- Clicking a topic chip never starts a search. It filters the already-loaded personalized Home feed locally, and All / すべて restores the full feed.
+- The old fixed Japanese shortcut chips that launched searches were removed.
+- Japanese-mode changes trigger a real Home refresh so switching JP on or off immediately updates the recommendation locale.
+- Existing 1.2.13 translation resilience, Japanese search filtering, iterative parsing and viewport-based thumbnail loading remain intact.
+
+Validation adds regression coverage for topic derivation, local topic filtering and history/channel-aware ranking, alongside the existing TypeScript, test and production package checks.
+
+Install the `.iinaplgz` release asset and fully quit and reopen IINA.
+
 # YouTube for IINA 1.2.13
 
 Japanese-mode reliability, Japanese discovery quality and sidebar performance fixes.
