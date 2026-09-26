@@ -13,7 +13,9 @@ export function buildWebInnertubeHeaders(config: InnertubeConfig): Record<string
         "Origin": "https://www.youtube.com",
         "Referer": "https://www.youtube.com/",
         "User-Agent": USER_AGENT,
-        "Accept-Language": getOptions().japaneseMode ? "ja-JP,ja;q=0.9,en;q=0.5" : "en-US,en;q=0.9",
+        // Keep metadata/title language unlocalized. Japanese mode changes the
+        // discovery region, then filters by the title YouTube actually returns.
+        "Accept-Language": "en-US,en;q=0.9,ja;q=0.6",
         "X-Youtube-Client-Name": "1",
         "X-Youtube-Client-Version": config.clientVersion
     };
@@ -29,7 +31,9 @@ export function buildWebClientContext(config: InnertubeConfig): JsonObject {
     return {
         clientName: "WEB",
         clientVersion: config.clientVersion,
-        hl: getOptions().japaneseMode ? "ja" : "en",
+        // hl stays English so YouTube does not localize an English original
+        // title into Japanese and accidentally make it pass JP-only filtering.
+        hl: "en",
         gl: getOptions().japaneseMode ? "JP" : "US"
     };
 }
