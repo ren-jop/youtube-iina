@@ -71,11 +71,14 @@ function buildTvInnertubeHeaders(config: TvInnertubeConfig, accessToken: string)
 }
 
 function buildTvClientContext(config: TvInnertubeConfig): JsonObject {
+    // Signed-in Home and Subscriptions are account views, not discovery
+    // searches. Keep their locale stable so Japanese discovery mode cannot
+    // hide or reshape the user's English subscriptions.
     return {
         clientName: TV_CLIENT_NAME,
         clientVersion: config.clientVersion || TV_DEFAULT_CLIENT_VERSION,
-        hl: getOptions().japaneseMode ? "ja" : "en",
-        gl: getOptions().japaneseMode ? "JP" : "US"
+        hl: "en",
+        gl: "US"
     };
 }
 
@@ -272,7 +275,14 @@ export function describeFeedFetchFailure(reason: FeedFetchFailureReason | undefi
     return mapFeedFailureToMessage(reason, fallback);
 }
 
-export async function fetchLoggedInHomeFeed(dependencies: FetchLoggedInBrowseFeedDependencies): Promise<FeedFetchResult> {
+export async function fetchLoggedInHomeFeed(
+    dependencies: FetchLoggedInBrowseFeedDependencies,
+    forceRefresh = false
+): Promise<FeedFetchResult> {
+    // A deliberate Home refresh walks deeper into the recommendation
+    // continuation so pressing Home can actually surface a different set
+    // instead of simply repainting the same first page.
+    const target = forceRefresh ? HOME_ITEMS_LIMIT * 3 : HOME_ITEMS_LIMIT;
     const result = await collectFeedItemsFromBrowsePages(
         (continuation?: string) => sendTvInnertubeRequest(
             "browse",
@@ -280,12 +290,12 @@ export async function fetchLoggedInHomeFeed(dependencies: FetchLoggedInBrowseFee
             FEED_TIMEOUT_MS,
             dependencies
         ),
-        HOME_ITEMS_LIMIT,
+        target,
         LOGGED_IN_BROWSE_MAX_PAGES
     );
     return {
         ...result,
-        items: result.items.slice(0, HOME_ITEMS_LIMIT)
+        items: result.items.slice(0, target)
     };
 }
 
@@ -298,7 +308,7 @@ export async function fetchLoggedInSubscriptionsFeed(dependencies: FetchLoggedIn
             dependencies
         ),
         SUBSCRIPTIONS_ITEMS_LIMIT,
-        LOGGED_IN_BROWSE_MAX_PAGES
+        Math.max(LOGGED_IN_BROWSE_MAX_PAGES, 10)
     );
     return {
         ...result,
