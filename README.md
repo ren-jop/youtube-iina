@@ -27,9 +27,11 @@ For future updates, the plugin's GitHub repository is `ren-jop/youtube-iina`.
 
 ## Performance and Academic focus
 
-Version 1.2.15 keeps the native playlist-switch path used in 1.2.6 and tightens Japanese discovery without turning it into a language-learning mode. Search parsing is iterative, duplicate translation requests are coalesced, and offscreen thumbnails wait until they are near the viewport before requesting/decoding. It still recovers idle players with stale playlist entries, avoids restarting the same pending video on repeated clicks, and stops discussion polling as soon as a new video is selected. Optional quality-setting failures do not prevent opening a video.
+Version 1.2.16 keeps the native playlist-switch path used in 1.2.6 and tightens Japanese discovery without turning it into a language-learning mode. Search parsing is iterative, duplicate translation requests are coalesced, and offscreen thumbnails wait until they are near the viewport before requesting/decoding. It still recovers idle players with stale playlist entries, avoids restarting the same pending video on repeated clicks, and stops discussion polling as soon as a new video is selected. Optional quality-setting failures do not prevent opening a video.
 
 Japanese mode now uses Japan as the discovery region while requesting unlocalized titles. English searches may be translated only for the backend query; the visible query stays as typed, and English-titled videos are removed instead of being presented as Japanese. If the signed-in Home feed is too sparse after strict filtering, the plugin supplements it with broad native-Japanese recommendations. Topic chips remain visible with a single real matching item, and the old Japanese-learning subscription suggestions have been removed.
+
+Subscription controls now bind YouTube's nested subscribed state to the correct channel. A subscribed search result shows an explicit **Unsubscribe** action, failed state refreshes no longer reset it to Subscribe, and successful subscribe/unsubscribe mutations keep the intended state even when YouTube returns a sparse response.
 
 Wireframe is removed and view counts/publication labels are always shown when YouTube supplies them, including Japanese labels. Loading and slow/failure messages appear only inside the selected video card. No pause overlay or separate status banner is added.
 
