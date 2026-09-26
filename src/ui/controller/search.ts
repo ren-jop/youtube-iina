@@ -133,7 +133,7 @@ export function createSearchController(dependencies: SearchControllerDependencie
 
             return {
                 ...channel,
-                isSubscribed: subscriptionState.isSubscribed ?? channel.isSubscribed ?? null,
+                isSubscribed: subscriptionState.isSubscribed ?? channel.isSubscribed,
                 subscribeCommand: subscriptionState.subscribeCommand || channel.subscribeCommand,
                 unsubscribeCommand: subscriptionState.unsubscribeCommand || channel.unsubscribeCommand
             };
