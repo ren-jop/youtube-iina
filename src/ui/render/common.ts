@@ -1,4 +1,6 @@
 import { filterReason, hideChannel } from "../storage/feedFilters";
+import { getOptions } from "../storage/libraryData";
+import { shouldShowVideoInJapaneseMode } from "../utils/japaneseVisibility";
 import { whenVisible } from "./visible";
 import { reconcileList } from "./reconcile";
 import { resolveChannelName } from "../innertube/channelNames";
@@ -190,6 +192,7 @@ export interface PlayableVideoListItemDependencies {
     itemClassName?: string;
     emptyChannelFallback?: string;
     applyContentFilters?: boolean;
+    allowEnglishInJapaneseMode?: boolean;
 }
 
 export function createPlayableVideoListItem(dependencies: PlayableVideoListItemDependencies): HTMLLIElement {
@@ -285,7 +288,8 @@ export function renderPlayableVideoList(dependencies: RenderPlayableVideoListDep
         onPlayItem,
         resolveItemPresentation,
         emptyChannelFallback = "",
-        applyContentFilters = true
+        applyContentFilters = true,
+        allowEnglishInJapaneseMode = false
     } = dependencies;
 
     if (!list || !emptyState) {
@@ -301,9 +305,17 @@ export function renderPlayableVideoList(dependencies: RenderPlayableVideoListDep
         status.classList.toggle("yt-status-warning", Boolean(state.warning));
     }
 
+    const japaneseMode = getOptions().japaneseMode;
+    const languageVisibleItems = state.items.filter(item =>
+        shouldShowVideoInJapaneseMode(
+            item.title,
+            japaneseMode,
+            allowEnglishInJapaneseMode
+        )
+    );
     const visibleItems = list.hasAttribute("data-history-list") || !applyContentFilters
-        ? state.items
-        : state.items.filter(item => !filterReason({
+        ? languageVisibleItems
+        : languageVisibleItems.filter(item => !filterReason({
             ...item,
             durationLabel: resolveItemPresentation(item).durationLabel
         }));
@@ -315,7 +327,16 @@ export function renderPlayableVideoList(dependencies: RenderPlayableVideoListDep
         }
 
         reconcileList(list, [], () => "", () => "", () => document.createElement("li"));
-        emptyState.textContent = state.items.length ? "All videos hidden by your filters. Adjust Settings & data to show more." : state.status || defaultEmptyText;
+        const hiddenOnlyByJapaneseMode =
+            japaneseMode
+            && !allowEnglishInJapaneseMode
+            && state.items.length > 0
+            && languageVisibleItems.length === 0;
+        emptyState.textContent = hiddenOnlyByJapaneseMode
+            ? "English videos are available only in Subscriptions while Japanese mode is on."
+            : state.items.length
+                ? "All videos hidden by your filters. Adjust Settings & data to show more."
+                : state.status || defaultEmptyText;
         setElementVisibility(emptyState, true);
         setElementVisibility(list, false);
         return;
