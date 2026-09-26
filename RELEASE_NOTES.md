@@ -1,3 +1,19 @@
+# YouTube for IINA 1.2.13
+
+Japanese-mode reliability, Japanese discovery quality and sidebar performance fixes.
+
+- Japanese search no longer fails when one translation service is unavailable. It tries a fast Google translation endpoint, falls back to MyMemory, then falls back to a Japanese-biased YouTube query instead of aborting the search.
+- Japanese Search now filters English spillover before rendering. Mixed Japanese titles with Latin product names remain valid.
+- Signed-in Home uses a Japanese/Japan client locale in Japanese mode and filters recommendations toward Japanese-language videos. Subscriptions deliberately remain language-neutral so English subscriptions are never hidden.
+- Related results follow Japanese discovery mode as well.
+- Search response parsing is iterative rather than recursive, avoiding deep-response stack pressure.
+- Offscreen thumbnails wait until they are near the viewport before requesting/decoding, reducing WKWebView work during large feed refreshes.
+- Translation requests are cached and concurrent duplicate translation requests are coalesced.
+
+Validation includes Japanese response parsing/filter tests in addition to the existing automated suite, TypeScript checks and production builds.
+
+Install the `.iinaplgz` release asset and fully quit and reopen IINA.
+
 # YouTube for IINA 1.2.12
 
 Subscription browsing and Home refresh fixes, preserving the minimal sidebar and native IINA playback path.
