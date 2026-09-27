@@ -1,3 +1,9 @@
+import { getOptions } from "../storage/libraryData";
+import {
+    buildJapaneseSearchQuery,
+    isJapaneseTitle,
+    isLikelyJapaneseDiscoveryText
+} from "../innertube/japanese";
 import { requestPlayback } from "./playerUi";
 import {
     SEARCH_CHANNELS_LIMIT,
@@ -334,9 +340,10 @@ export function createSearchController(dependencies: SearchControllerDependencie
         renderSearchResults();
 
         try {
-            // Search is deliberate lookup, so keep the exact query and allow
-            // useful teachers/tutorials in any language. Japanese mode only
-            // constrains passive discovery feeds.
+            const japaneseMode = getOptions().japaneseMode;
+            const requestQuery = japaneseMode
+                ? buildJapaneseSearchQuery(normalizedQuery)
+                : normalizedQuery;
             const config = await getInnertubeConfig();
             const headers = buildWebInnertubeHeaders(config);
 
@@ -349,7 +356,7 @@ export function createSearchController(dependencies: SearchControllerDependencie
                         context: {
                             client: buildWebClientContext(config)
                         },
-                        query: normalizedQuery
+                        query: requestQuery
                     }
                 },
                 SEARCH_TIMEOUT_MS
@@ -361,9 +368,17 @@ export function createSearchController(dependencies: SearchControllerDependencie
 
             const responseJson: unknown = JSON.parse(response.text);
             const parsed = parseSearchResponseFromParser(responseJson);
-            const limitedChannels = parsed.channels.slice(0, SEARCH_CHANNELS_LIMIT);
+            const candidateChannels = japaneseMode
+                ? parsed.channels.filter((channel) =>
+                    isLikelyJapaneseDiscoveryText(channel.title, channel.title)
+                )
+                : parsed.channels;
+            const candidateVideos = japaneseMode
+                ? parsed.videos.filter((video) => isJapaneseTitle(video.title))
+                : parsed.videos;
+            const limitedChannels = candidateChannels.slice(0, SEARCH_CHANNELS_LIMIT);
             const channelsWithSubscriptionState = limitedChannels;
-            const limitedVideos = parsed.videos.slice(0, SEARCH_VIDEOS_LIMIT);
+            const limitedVideos = candidateVideos.slice(0, SEARCH_VIDEOS_LIMIT);
             const finalizedVideos = await buildFinalSearchVideos(limitedVideos);
 
             if (requestId !== searchRequestSequence) {
@@ -372,7 +387,13 @@ export function createSearchController(dependencies: SearchControllerDependencie
 
             state.searchState.channels = channelsWithSubscriptionState;
             state.searchState.videos = finalizedVideos;
-            setSearchStatus("");
+            setSearchStatus(
+                japaneseMode
+                && finalizedVideos.length === 0
+                && limitedChannels.length === 0
+                    ? "No Japanese results found. Try a broader search."
+                    : ""
+            );
             // Subscription state can take several requests. Show videos immediately.
             if (state.appMode === "logged_in") void resolveSearchChannelsSubscriptionState(limitedChannels).then(channels => {
                 if (requestId !== searchRequestSequence || state.appMode !== "logged_in") return;
