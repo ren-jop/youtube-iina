@@ -1,3 +1,15 @@
+## 1.2.19 — Intentional learning without the rabbit hole
+
+- Reworked Japanese mode around **passive discovery instead of a global language ban**. Home and Subscriptions stay Japanese while JP mode is active, but deliberate Search is all-language.
+- Search now sends the **exact query you typed**. The unused Google/MyMemory translation path and network permissions were removed.
+- Related follows the language of the video you intentionally opened: Japanese videos keep Japanese follow-ups, while an English tutorial can keep useful English follow-ups.
+- English subscription uploads are no longer visible during Japanese mode.
+- Added **Focus sessions** from 15 minutes to 3 hours. You name what you are there to do; the plugin searches that purpose and pauses Home + Subscriptions for the session.
+- The daily 15/30/45/60 minute limit now covers **Home + Subscriptions together** instead of Home alone.
+- The passive-browsing timer now counts recent browsing interaction such as scrolling/clicking, rather than burning time merely because a feed is left open while a useful video plays.
+- Saved channels, History and channel pages remain deliberate all-language tools.
+- Existing Japanese discovery locks still support durations up to **three calendar months**.
+
 ## 1.2.18 — Longer Japanese locks and English isolation
 
 - Japanese-only blocks can now run for **3 days, 1 week, 2 weeks, 1 month, 2 months or 3 months**, in addition to the existing shorter choices and until-midnight option.
