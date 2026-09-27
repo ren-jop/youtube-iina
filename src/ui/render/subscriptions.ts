@@ -65,9 +65,8 @@ export function renderSubscriptions(dependencies: SubscriptionsRenderDependencie
         onPlayItem,
         resolveItemPresentation,
         emptyChannelFallback: "Unknown channel",
-        // Subscriptions are the one intentional English exception in JP mode.
-        // Keep the user's account feed language-neutral and unfiltered.
-        applyContentFilters: false,
-        allowEnglishInJapaneseMode: true
+        // Subscription language policy is applied by the controller before
+        // rendering; do not re-run local content filters here.
+        applyContentFilters: false
     });
 }

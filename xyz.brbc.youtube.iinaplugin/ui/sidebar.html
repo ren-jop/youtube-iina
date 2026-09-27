@@ -27,7 +27,8 @@
                         </button>
                     </div>
                     <div class="yt-header-actions">
-                        <label class="yt-japanese-switch" title="Japanese immersion"><input type="checkbox" data-japanese-toggle aria-label="Japanese immersion"> JP</label>
+                        <label class="yt-japanese-switch" title="Japanese discovery"><input type="checkbox" data-japanese-toggle aria-label="Japanese discovery"> JP</label>
+                        <button class="yt-icon-button yt-focus-button" type="button" data-focus-start aria-label="Start focus session" title="Start a focus session">Focus</button>
                         <button class="yt-icon-button" type="button" data-settings-open aria-label="Settings and data" title="Settings and data">⚙</button>
                         <button class="yt-icon-button yt-home-button" type="button" aria-label="Home" title="Home" data-home-refresh>
                             <svg class="yt-home-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
@@ -60,6 +61,7 @@
                 </nav>
             </div>
             <p class="yt-auth-status" data-auth-status>Anonymous mode</p>
+            <p class="yt-auth-status" data-focus-status hidden></p>
             <div class="yt-auth-panel" data-auth-panel hidden>
                 <p class="yt-auth-panel-title">Copy this code and follow the instructions in your browser to sign-in.</p>
                 <div class="yt-auth-panel-actions">
@@ -85,6 +87,7 @@
                 <ul class="yt-list" data-feed-favorites></ul>
             </section>
             <section class="yt-view" data-view="subscriptions">
+                <div data-subscriptions-guard hidden></div>
                 <label class="yt-subscription-filter">Search subscriptions<input type="search" data-subscriptions-filter placeholder="Filter loaded videos or channels" aria-label="Search loaded subscriptions"></label>
                 <p class="yt-empty" data-subscriptions-empty>Sign in to load subscriptions.</p>
                 <p class="yt-empty" data-subscriptions-status hidden></p>
@@ -150,8 +153,8 @@
             <label>Surface opacity<select data-option="opacity"><option value="100">Solid</option><option value="90">90%</option><option value="75">75%</option><option value="60">60%</option></select></label>
             <p>Transparency depends on IINA’s sidebar background.</p>
             <label><input type="checkbox" data-option="japaneseMode"> Japanese discovery / 日本語</label>
-            <p>JP mode uses Japan for discovery while keeping titles unlocalized. English queries may be translated internally to find Japanese results, but your search text stays unchanged and English-titled videos are omitted. Japanese Home targets about 50 videos, and topic chips can load extra videos when a category is sparse. While JP mode is on, English video and channel cards are hidden everywhere except Subscriptions.</p>
-            <label>Japanese-only block
+            <p>JP mode now targets passive discovery rather than deliberate lookup. Home and Subscriptions show Japanese-titled videos, while Search uses exactly what you type in any language. Related follows the language of the video you deliberately opened, so an English tutorial can keep useful English follow-ups. Japanese Home targets about 50 videos and sparse topic chips can load extra matches.</p>
+            <label>Japanese discovery lock
                 <select data-japanese-lock-duration>
                     <option value="60">1 hour</option>
                     <option value="180">3 hours</option>
@@ -167,9 +170,9 @@
                     <option value="midnight">Until local midnight</option>
                 </select>
             </label>
-            <button type="button" data-japanese-lock-start>Start Japanese-only block</button>
-            <p data-japanese-lock-status>No Japanese-only block is active.</p>
-            <label>Daily Home discovery
+            <button type="button" data-japanese-lock-start>Lock Japanese discovery</button>
+            <p data-japanese-lock-status>No Japanese discovery lock is active.</p>
+            <label>Daily passive browsing
                 <select data-option="dailyDiscoveryMinutes">
                     <option value="0">Off</option>
                     <option value="15">15 minutes</option>
@@ -178,7 +181,18 @@
                     <option value="60">60 minutes</option>
                 </select>
             </label>
-            <p>Only Home/Feed browsing counts. When the budget ends, Search, Subscriptions, Related and channel pages still work. You can deliberately open a 15- or 30-minute intentional session by naming what you are there to watch.</p>
+            <p>Home and Subscriptions share this daily budget. It counts recent browsing interaction rather than simply leaving a feed open while a video plays. Search, Related, channels and Recent do not count, so deliberate learning can continue after passive browsing is paused.</p>
+            <label>Focus session length
+                <select data-option="focusSessionMinutes">
+                    <option value="15">15 minutes</option>
+                    <option value="30">30 minutes</option>
+                    <option value="60" selected>60 minutes</option>
+                    <option value="90">90 minutes</option>
+                    <option value="120">2 hours</option>
+                    <option value="180">3 hours</option>
+                </select>
+            </label>
+            <p>Focus asks what you are here to do, searches that purpose, and pauses Home + Subscriptions for the chosen time. Click the active Focus button again if you genuinely need to end it early.</p>
             <label><input type="checkbox" data-option="qualityFilter"> Reduce clickbait</label>
             <p>Hides titles with phrases such as “you won’t believe”, “shocking truth” and “必見”, or excessive punctuation. This is a title heuristic, not an AI-quality detector.</p>
             <label>Minimum video length<select data-option="minimumMinutes"><option value="0">Any length</option><option value="3">3 minutes</option><option value="5">5 minutes</option><option value="10">10 minutes</option></select></label>

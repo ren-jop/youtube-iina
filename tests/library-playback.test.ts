@@ -8,6 +8,12 @@ import { diagnosticReport } from '../src/ui/bridge/diagnostics';
 import info from '../xyz.brbc.youtube.iinaplugin/Info.json';
 import { handlePlayItem } from '../src/plugin/playback';
 import { installDataTransfer } from '../src/plugin/dataTransfer';
+import {
+    getDiscoveryGuardSnapshot,
+    recordPassiveBrowsingActivity,
+    startFocusSession,
+    stopFocusSession
+} from '../src/ui/storage/discoveryGuard';
 
 const channelId='UC'+'a'.repeat(22);
 const favorite={channelId,title:'Science, "with" examples',thumbnailUrl:'',addedAt:'2026-09-19T00:00:00.000Z'};
@@ -32,6 +38,24 @@ test('Japanese-only lock supports calendar durations up to three months',()=>{
     expect(threeMonths.getDate()).toBe(30);
     expect(resolveJapaneseLockUntil('month4',start).getTime()-start.getTime()).toBe(24*60*60*1000);
 });
+
+test('focus sessions pause passive feeds without consuming the daily budget',()=>{
+    const now=new Date(2026,8,27,10,0,0).getTime();
+    saveLibraryData({options:{...defaultOptions,dailyDiscoveryMinutes:15,focusSessionMinutes:60},history:[]});
+    recordPassiveBrowsingActivity(false,now);
+    startFocusSession(60,'learn calculus',now);
+    let snapshot=getDiscoveryGuardSnapshot(now);
+    expect(snapshot.blocked).toBe(true);
+    expect(snapshot.dailyLimitReached).toBe(false);
+    expect(snapshot.focusMinutesRemaining).toBe(60);
+    expect(snapshot.focusPurpose).toBe('learn calculus');
+    recordPassiveBrowsingActivity(true,now+30000);
+    expect(getDiscoveryGuardSnapshot(now+30000).usedMinutes).toBe(0);
+    stopFocusSession(now+30000);
+    snapshot=getDiscoveryGuardSnapshot(now+30000);
+    expect(snapshot.blocked).toBe(false);
+});
+
 test('topic fallback rejects spicy food and generic title overlap',()=>{
     const items=['How to quit digital addictions','10 levels of spicy food','Why you should watch this video','Addiction and self control'].map(title=>({title}));
     expect(filterByTopic(items,'How to quit your digital addiction').map(x=>x.title)).toEqual([items[0].title,items[3].title]);

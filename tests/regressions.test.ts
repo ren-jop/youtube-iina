@@ -11,13 +11,8 @@ import { ensureHttpBridgeListener, setHttpBridgeApi } from '../src/ui/bridge/htt
 import { fetchLoggedInSubscriptionsFeed } from '../src/ui/innertube/feedBrowse';
 import {
     isJapaneseTitle,
-    isLikelyJapaneseDiscoveryText,
-    parseGoogleJapaneseTranslation
+    isLikelyJapaneseDiscoveryText
 } from '../src/ui/innertube/japanese';
-import {
-    shouldShowChannelInJapaneseMode,
-    shouldShowVideoInJapaneseMode
-} from '../src/ui/utils/japaneseVisibility';
 import {
     deriveHomeTopics,
     filterHomeItemsByTopic,
@@ -128,12 +123,6 @@ describe('personalized Home topics', () => {
 });
 
 describe('Japanese discovery', () => {
-    test('parses Google translation responses', () => {
-        expect(parseGoogleJapaneseTranslation([
-            [['猫の勉強方法', 'how to study cats', null, null]]
-        ])).toBe('猫の勉強方法');
-    });
-
     test('keeps Japanese discovery strict without rejecting mixed Japanese titles', () => {
         expect(isLikelyJapaneseDiscoveryText(
             'Macで集中するための3つの方法',
@@ -606,11 +595,3 @@ test('Related uses channel uploads when YouTube next fails and excludes the play
     expect(state.relatedState.isLoading).toBe(false);
 });
 
-
-test('Japanese mode keeps English video cards exclusive to Subscriptions', () => {
-    expect(shouldShowVideoInJapaneseMode('How to focus better', true)).toBe(false);
-    expect(shouldShowVideoInJapaneseMode('How to focus better', true, true)).toBe(true);
-    expect(shouldShowVideoInJapaneseMode('Rustで安全なCLIを作る', true)).toBe(true);
-    expect(shouldShowChannelInJapaneseMode('English Channel', true)).toBe(false);
-    expect(shouldShowChannelInJapaneseMode('東海オンエア', true)).toBe(true);
-});

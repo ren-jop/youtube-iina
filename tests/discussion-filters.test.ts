@@ -31,18 +31,17 @@ test("local quality rules are optional and do not judge unknown durations or pop
  expect(filterReason({...video,title:"数学の解説"},{...defaultOptions,excludedWords:["数学"]})).toBe("Excluded title phrase");
 });
 test("new appearance and discovery settings validate old and imported backups", () => {
- expect(normalizeOptions({theme:"bad",opacity:-1,hiddenChannels:["a",null,"a"],minimumMinutes:500,dailyDiscoveryMinutes:999})).toMatchObject({opacity:90,hiddenChannels:["a"],minimumMinutes:0,japaneseMode:false,dailyDiscoveryMinutes:30});
+ expect(normalizeOptions({theme:"bad",opacity:-1,hiddenChannels:["a",null,"a"],minimumMinutes:500,dailyDiscoveryMinutes:999,focusSessionMinutes:999})).toMatchObject({opacity:90,hiddenChannels:["a"],minimumMinutes:0,japaneseMode:false,dailyDiscoveryMinutes:30,focusSessionMinutes:60});
  expect(normalizeOptions({...defaultOptions,theme:"wireframe",japaneseMode:true,opacity:60})).toMatchObject({japaneseMode:true,opacity:60});
  expect(normalizeOptions({theme:"wireframe",showStats:false,playbackQuality:"auto"})).toMatchObject({showStats:true,playbackQuality:"1080"});
  expect(normalizeOptions({theme:"wireframe"})).not.toHaveProperty("theme");
 });
 
 test("strict Japanese discovery excludes English, Chinese and ambiguous titles", async () => {
- const { isJapaneseTitle, parseJapaneseTranslation } = await import("../src/ui/innertube/japanese");
+ const { isJapaneseTitle } = await import("../src/ui/innertube/japanese");
  expect(isJapaneseTitle("ギターを練習する方法")).toBe(true);
  for (const title of ["Learn guitar", "学习吉他的方法", "数学", "Learn guitar easily 日本語"]) expect(isJapaneseTitle(title)).toBe(false);
- expect(filterReason({title:"Learn guitar",channelTitle:"Channel"},{...defaultOptions,japaneseMode:true})).toBe("Not a Japanese title");
- expect(parseJapaneseTranslation({responseStatus:200,responseData:{translatedText:"ギターの練習"}})).toBe("ギターの練習");
+ expect(filterReason({title:"Learn guitar",channelTitle:"Channel"},{...defaultOptions,japaneseMode:true})).toBe("");
  expect(()=>parseJapaneseTranslation({responseStatus:429,responseData:{translatedText:"quota exceeded"}})).toThrow();
 });
 

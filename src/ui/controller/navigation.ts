@@ -11,6 +11,7 @@ import {
     updateActiveViewLoadingIndicators as updateActiveViewLoadingIndicatorsView
 } from "../render/common";
 import { state } from "../state";
+import { getDiscoveryGuardSnapshot } from "../storage/discoveryGuard";
 import type { ViewName } from "../types";
 
 export interface NavigationController {
@@ -53,6 +54,11 @@ export function createNavigationController(onViewChanged?: () => void): Navigati
         }
         if (viewName === "related" && !state.currentPlaybackVideoId) {
             normalizedViewName = "feed";
+        }
+
+        const focusActive = getDiscoveryGuardSnapshot().focusMinutesRemaining > 0;
+        if (focusActive && (normalizedViewName === "feed" || normalizedViewName === "subscriptions")) {
+            normalizedViewName = "search";
         }
 
         const content = document.querySelector<HTMLElement>(".yt-content");
