@@ -15,6 +15,10 @@ import {
     parseGoogleJapaneseTranslation
 } from '../src/ui/innertube/japanese';
 import {
+    shouldShowChannelInJapaneseMode,
+    shouldShowVideoInJapaneseMode
+} from '../src/ui/utils/japaneseVisibility';
+import {
     deriveHomeTopics,
     filterHomeItemsByTopic,
     rankPersonalizedHomeItems
@@ -600,4 +604,13 @@ test('Related uses channel uploads when YouTube next fails and excludes the play
     expect(state.relatedState.warning).toBe('More from this channel.');
     expect(state.relatedState.status).toBe('');
     expect(state.relatedState.isLoading).toBe(false);
+});
+
+
+test('Japanese mode keeps English video cards exclusive to Subscriptions', () => {
+    expect(shouldShowVideoInJapaneseMode('How to focus better', true)).toBe(false);
+    expect(shouldShowVideoInJapaneseMode('How to focus better', true, true)).toBe(true);
+    expect(shouldShowVideoInJapaneseMode('Rustで安全なCLIを作る', true)).toBe(true);
+    expect(shouldShowChannelInJapaneseMode('English Channel', true)).toBe(false);
+    expect(shouldShowChannelInJapaneseMode('東海オンエア', true)).toBe(true);
 });
