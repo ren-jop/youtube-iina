@@ -1,3 +1,13 @@
+## 1.2.20 — Strict Japanese Search and cleaner Focus control
+
+- **JP mode applies to Search again.** English or mixed-language results no longer leak through while the Japanese filter is active.
+- Latin-script queries keep the text you typed in the UI, but the backend query gets a small Japanese discovery hint and returned video titles are still strictly validated as Japanese.
+- Japanese queries are sent unchanged.
+- Search channels are also filtered toward Japanese discovery while JP mode is active.
+- The Focus control is now a fixed **32×32 target icon** matching the other header controls instead of a text pill that changes width with the remaining time.
+- Focus time and purpose remain available through the status text and button tooltip without shifting the toolbar.
+- Removed a stale translation-parser test left over from the older external-translation implementation.
+
 ## 1.2.19 — Intentional learning without the rabbit hole
 
 - Reworked Japanese mode around **passive discovery instead of a global language ban**. Home and Subscriptions stay Japanese while JP mode is active, but deliberate Search is all-language.
