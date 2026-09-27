@@ -45,6 +45,7 @@ let managedPlayerId: number | null = null;
 let windowReady = false;
 let windowClosed = false;
 let playTimer: ReturnType<typeof setTimeout> | null = null;
+let playlistCleanupTimer: ReturnType<typeof setTimeout> | null = null;
 let switchStartedAt = 0;
 let switchVideoId = "";
 installDataTransfer(() => windowClosed);
@@ -137,8 +138,23 @@ event.on("iina.window-loaded", () => {
         windowClosed = false;
         const path = String(core.status.url || "");
         if (switchStartedAt && path.includes(switchVideoId)) {
-            sidebar.postMessage("playbackSwitchStatus", { stage: "loaded", videoId: switchVideoId, elapsedMs: Date.now() - switchStartedAt });
+            const loadedVideoId = switchVideoId;
+            sidebar.postMessage("playbackSwitchStatus", { stage: "loaded", videoId: loadedVideoId, elapsedMs: Date.now() - switchStartedAt });
             switchStartedAt = 0;
+
+            // Wait until the file-loaded callback has fully unwound before
+            // removing the old playlist entry. Doing this synchronously during
+            // the switch can race IINA/mpv native playlist state.
+            if (playlistCleanupTimer !== null) clearTimeout(playlistCleanupTimer);
+            playlistCleanupTimer = setTimeout(() => {
+                playlistCleanupTimer = null;
+                if (windowClosed || switchStartedAt) return;
+                try {
+                    iina.mpv.command("playlist-clear", []);
+                } catch {
+                    console.warn("YouTube: previous playlist entries could not be cleared after load");
+                }
+            }, 400);
         }
         if (isSplashPath(path)) sponsorBlockController?.stop();
         else sponsorBlockController?.start();
@@ -159,6 +175,8 @@ event.on("iina.window-loaded", () => {
         windowClosed = true;
         if (playTimer !== null) clearTimeout(playTimer);
         playTimer = null;
+        if (playlistCleanupTimer !== null) clearTimeout(playlistCleanupTimer);
+        playlistCleanupTimer = null;
         switchStartedAt = 0;
         if (showTimer !== null) clearTimeout(showTimer);
         sponsorBlockController?.stop();
@@ -178,6 +196,10 @@ event.on("iina.window-loaded", () => {
 
         if (!/^[A-Za-z0-9_-]{11}$/.test(data.videoId || "")) return;
         if (switchStartedAt && switchVideoId === data.videoId && Date.now() - switchStartedAt < 30000) return;
+        if (playlistCleanupTimer !== null) {
+            clearTimeout(playlistCleanupTimer);
+            playlistCleanupTimer = null;
+        }
         if (playTimer !== null) clearTimeout(playTimer);
         // Coalesce double clicks and rapid selections: only the latest starts.
         playTimer = setTimeout(() => {
