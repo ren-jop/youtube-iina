@@ -192,7 +192,6 @@ export interface PlayableVideoListItemDependencies {
     itemClassName?: string;
     emptyChannelFallback?: string;
     applyContentFilters?: boolean;
-    allowEnglishInJapaneseMode?: boolean;
 }
 
 export function createPlayableVideoListItem(dependencies: PlayableVideoListItemDependencies): HTMLLIElement {
@@ -275,6 +274,7 @@ export interface RenderPlayableVideoListDependencies {
     resolveItemPresentation: (item: FeedVideoItem) => VideoListItemPresentation;
     emptyChannelFallback?: string;
     applyContentFilters?: boolean;
+    allowEnglishInJapaneseMode?: boolean;
 }
 
 export function renderPlayableVideoList(dependencies: RenderPlayableVideoListDependencies): void {
