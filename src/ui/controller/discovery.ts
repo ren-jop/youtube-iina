@@ -62,10 +62,15 @@ export function initializeDiscovery(navigate: (view:ViewName)=>void, search:(que
         const focusActive = focus.focusMinutesRemaining > 0;
         if (focusButton) {
             focusButton.classList.toggle("is-active", focusActive);
-            focusButton.textContent = focusActive ? `Focus ${focus.focusMinutesRemaining}m` : "Focus";
             focusButton.title = focusActive
-                ? `Focus: ${focus.focusPurpose || "active"} · click to end early`
+                ? `Focus: ${focus.focusPurpose || "active"} · about ${focus.focusMinutesRemaining} min left · click to end early`
                 : `Start a ${options.focusSessionMinutes}-minute focus session`;
+            focusButton.setAttribute(
+                "aria-label",
+                focusActive
+                    ? `Focus session active: about ${focus.focusMinutesRemaining} minutes left`
+                    : "Start focus session"
+            );
         }
         if (focusStatus) {
             focusStatus.hidden = !focusActive;
