@@ -33,6 +33,17 @@ export function isJapaneseTitle(value: string): boolean {
         && (ratio >= 0.18 || stats.kana >= 4);
 }
 
+export function buildJapaneseSearchQuery(query: string): string {
+    const normalized = query.trim();
+    if (!normalized) return "";
+    if (anyJapanesePattern.test(normalized)) return normalized;
+
+    // Keep the user's visible text untouched. Adding Japanese discovery terms
+    // gives YouTube a strong locale/language hint without relying on a separate
+    // translation service, and the returned titles are still strictly filtered.
+    return `${normalized} 日本語 解説`;
+}
+
 export function isLikelyJapaneseDiscoveryText(
     title: string,
     channelTitle = ""
