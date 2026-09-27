@@ -4,9 +4,8 @@ import { initializeDiscovery } from "./discovery";
 import { createDiscussionController } from "./discussion";
 import { renderHistory, initializePolish } from "./polish";
 import { initializeLibrary } from "./library";
-import { getOptions, recordPlayedVideo } from "../storage/libraryData";
-import { shouldShowChannelInJapaneseMode } from "../utils/japaneseVisibility";
-import { recordDiscoveryActivity } from "../storage/discoveryGuard";
+import { recordPlayedVideo } from "../storage/libraryData";
+import { recordPassiveBrowsingActivity } from "../storage/discoveryGuard";
 import { recordDiagnostic } from "../bridge/diagnostics";
 import { initializeDiagnostics } from "../bridge/diagnostics";
 import { ensureHttpBridgeListener, setHttpBridgeApi } from "../bridge/httpBridge";
@@ -101,11 +100,8 @@ export function initializeSidebar(): void {
     let searchController: SearchController | null = null;
 
     const renderFavorites = (): void => {
-        const japaneseMode = getOptions().japaneseMode;
         renderFavoritesView({
-            favorites: state.favorites.filter(favorite =>
-                shouldShowChannelInJapaneseMode(favorite.title, japaneseMode)
-            ),
+            favorites: state.favorites,
             elements: {
                 list: favoritesList,
                 emptyState: favoritesEmptyState
@@ -211,15 +207,15 @@ export function initializeSidebar(): void {
         }
     });
 
-    recordDiscoveryActivity(false);
+    recordPassiveBrowsingActivity(false);
     window.setInterval(() => {
-        const changed = recordDiscoveryActivity(
-            state.appMode === "logged_in"
-            && state.activeView === "feed"
+        const changed = recordPassiveBrowsingActivity(
+            (state.activeView === "feed" || state.activeView === "subscriptions")
             && document.visibilityState !== "hidden"
         );
-        if (changed && state.activeView === "feed") {
+        if (changed) {
             feedController.renderFeed();
+            subscriptionsController.renderSubscriptions();
         }
     }, 15000);
 
@@ -232,12 +228,17 @@ export function initializeSidebar(): void {
         renderFavorites();
 
         const key = (event as CustomEvent<string>).detail;
-        if (
-            key === "japaneseMode"
-            && state.appMode === "logged_in"
-        ) {
+        if (key === "japaneseMode") {
             void feedController.refreshFeed(true);
+            if (state.appMode === "logged_in") {
+                void subscriptionsController.refreshSubscriptions(true);
+            }
         }
+    });
+    document.addEventListener("youtube-focus-session-changed", () => {
+        feedController.renderFeed();
+        subscriptionsController.renderSubscriptions();
+        navigationController.setActiveView(navigationController.getActiveView());
     });
     initializeDiscovery(navigationController.setActiveView, searchController.performSearch);
     initializePolish(navigationController.setActiveView);
