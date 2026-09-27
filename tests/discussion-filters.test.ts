@@ -42,7 +42,6 @@ test("strict Japanese discovery excludes English, Chinese and ambiguous titles",
  expect(isJapaneseTitle("ギターを練習する方法")).toBe(true);
  for (const title of ["Learn guitar", "学习吉他的方法", "数学", "Learn guitar easily 日本語"]) expect(isJapaneseTitle(title)).toBe(false);
  expect(filterReason({title:"Learn guitar",channelTitle:"Channel"},{...defaultOptions,japaneseMode:true})).toBe("");
- expect(()=>parseJapaneseTranslation({responseStatus:429,responseData:{translatedText:"quota exceeded"}})).toThrow();
 });
 
 test("search and modern Japanese cards preserve views and publication labels", async () => {

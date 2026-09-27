@@ -1,3 +1,8 @@
+import { getOptions } from "../storage/libraryData";
+import {
+    isJapaneseTitle,
+    isLikelyJapaneseDiscoveryText
+} from "../innertube/japanese";
 import { filterReason } from "../storage/feedFilters";
 import { reconcileList } from "./reconcile";
 import type { SearchChannelResult, SearchState, SearchVideoResult, VideoMetadata } from "../types";
@@ -59,8 +64,10 @@ export function renderSearchResults(dependencies: SearchRenderDependencies): voi
 
     channelsList.replaceChildren();
 
+    const japaneseMode = getOptions().japaneseMode;
     const visibleChannels = searchState.channels.filter(channel =>
-        !filterReason({title:"",channelTitle:channel.title})
+        (!japaneseMode || isLikelyJapaneseDiscoveryText(channel.title, channel.title))
+        && !filterReason({title:"",channelTitle:channel.title})
     );
 
     if (visibleChannels.length === 0) {
@@ -114,10 +121,18 @@ export function renderSearchResults(dependencies: SearchRenderDependencies): voi
         });
     }
 
-    const visibleVideos = searchState.videos.filter(video => !filterReason({...video,durationLabel:resolveVideoPresentation(video,getVideoMetadataFromCache(video.videoId)).durationLabel}));
-    videosEmptyState.textContent = searchState.videos.length && !visibleVideos.length
-        ? "All videos hidden by your filters. Adjust Settings & data to show more."
-        : "No videos found.";
+    const languageVisibleVideos = searchState.videos.filter(video =>
+        !japaneseMode || isJapaneseTitle(video.title)
+    );
+    const visibleVideos = languageVisibleVideos.filter(video =>
+        !filterReason({...video,durationLabel:resolveVideoPresentation(video,getVideoMetadataFromCache(video.videoId)).durationLabel})
+    );
+    videosEmptyState.textContent =
+        japaneseMode && searchState.videos.length > 0 && languageVisibleVideos.length === 0
+            ? "No Japanese videos found for this search."
+            : searchState.videos.length && !visibleVideos.length
+                ? "All videos hidden by your filters. Adjust Settings & data to show more."
+                : "No videos found.";
     if (visibleVideos.length === 0) {
         reconcileList(videosList, [], () => "", () => "", () => document.createElement("li"));
         setElementVisibility(videosEmptyState, Boolean(searchState.query) && !searchState.isLoading);
