@@ -544,13 +544,18 @@ async function fetchRelatedFeedUncached(
 const relatedCache = new Map<string, { at: number; result: FeedFetchResult }>();
 const relatedPending = new Map<string, Promise<FeedFetchResult>>();
 export async function fetchRelatedFeed(videoId: string, title = ""): Promise<FeedFetchResult> {
-    const key = `${videoId}:${getOptions().relatedMode}:${getOptions().japaneseMode}:${title}`;
+    // Related should continue the language of the video the user deliberately
+    // opened. JP discovery therefore keeps Japanese follow-ups for Japanese
+    // videos, but an explicitly searched English tutorial can keep useful
+    // English follow-ups.
+    const japaneseOnly = getOptions().japaneseMode && isJapaneseTitle(title);
+    const key = `${videoId}:${getOptions().relatedMode}:${japaneseOnly}:${title}`;
     const cached = relatedCache.get(key);
     if (cached && Date.now() - cached.at < 180000) return cached.result;
     const pending = relatedPending.get(key);
     if (pending) return pending;
     const request = fetchRelatedFeedUncached(videoId, title).then(result => {
-        const filteredResult = getOptions().japaneseMode
+        const filteredResult = japaneseOnly
             ? {
                 ...result,
                 items: result.items.filter((item) =>
