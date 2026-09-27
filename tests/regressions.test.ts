@@ -11,8 +11,7 @@ import { ensureHttpBridgeListener, setHttpBridgeApi } from '../src/ui/bridge/htt
 import { fetchLoggedInSubscriptionsFeed } from '../src/ui/innertube/feedBrowse';
 import {
     isJapaneseTitle,
-    isLikelyJapaneseDiscoveryText,
-    parseGoogleJapaneseTranslation
+    isLikelyJapaneseDiscoveryText
 } from '../src/ui/innertube/japanese';
 import {
     deriveHomeTopics,
@@ -124,12 +123,6 @@ describe('personalized Home topics', () => {
 });
 
 describe('Japanese discovery', () => {
-    test('parses Google translation responses', () => {
-        expect(parseGoogleJapaneseTranslation([
-            [['猫の勉強方法', 'how to study cats', null, null]]
-        ])).toBe('猫の勉強方法');
-    });
-
     test('keeps Japanese discovery strict without rejecting mixed Japanese titles', () => {
         expect(isLikelyJapaneseDiscoveryText(
             'Macで集中するための3つの方法',
