@@ -1,3 +1,12 @@
+## 1.2.21 — Safer native video switching
+
+- Fixed a native playback race that could crash IINA when opening a video from the sidebar.
+- The plugin no longer issues `playlist-clear` immediately after starting the replacement playlist item.
+- Old playlist entries are now cleared only after IINA confirms the new YouTube file has loaded, with a short delay so the native file-switch callback can finish first.
+- Starting another selection or closing the player cancels any pending cleanup.
+- Same-window playback and fullscreen preservation remain unchanged.
+- Added a regression test covering delayed cleanup after `file-loaded`.
+
 ## 1.2.20 — Strict Japanese Search and cleaner Focus control
 
 - **JP mode applies to Search again.** English or mixed-language results no longer leak through while the Japanese filter is active.
