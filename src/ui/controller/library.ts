@@ -64,8 +64,8 @@ export function initializeLibrary(onImported: () => void): void {
         if (japaneseSetting) japaneseSetting.disabled = Boolean(remaining);
         if (lockStatus) {
             lockStatus.textContent = remaining
-                ? `Japanese-only block active for about ${remaining}. JP cannot be switched off until it ends.`
-                : "No Japanese-only block is active.";
+                ? `Japanese discovery lock active for about ${remaining}. JP discovery cannot be switched off until it ends.`
+                : "No Japanese discovery lock is active.";
         }
 
         applyLocalAppearance();
@@ -82,7 +82,7 @@ export function initializeLibrary(onImported: () => void): void {
                     && japaneseLockRemaining(data.options.japaneseLockUntil)
                     && !(input as HTMLInputElement).checked
                 ) {
-                    report("Japanese-only block is active, so JP cannot be switched off yet.");
+                    report("Japanese discovery is locked, so JP cannot be switched off yet.");
                     refresh();
                     return;
                 }
@@ -101,6 +101,10 @@ export function initializeLibrary(onImported: () => void): void {
                     data.options.dailyDiscoveryMinutes = [0, 15, 30, 45, 60].includes(Number(input.value))
                         ? Number(input.value)
                         : 30;
+                } else if (key === "focusSessionMinutes") {
+                    data.options.focusSessionMinutes = [15, 30, 60, 90, 120, 180].includes(Number(input.value))
+                        ? Number(input.value)
+                        : 60;
                 } else if (key === "hiddenChannels" || key === "excludedWords") {
                     return;
                 } else if (key === "relatedMode") {
@@ -136,9 +140,9 @@ export function initializeLibrary(onImported: () => void): void {
             saveLibraryData(data);
             refresh();
             document.dispatchEvent(new CustomEvent("youtube-options-changed", { detail: "japaneseMode" }));
-            report(`Japanese-only block started until ${until.toLocaleString()}.`);
+            report(`Japanese discovery locked until ${until.toLocaleString()}.`);
         } catch {
-            report("Could not start the Japanese-only block.");
+            report("Could not start the Japanese discovery lock.");
             refresh();
         }
     });
