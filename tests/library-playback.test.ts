@@ -122,14 +122,15 @@ test('native playback never clears or starts a rejected playlist insertion',()=>
     globalThis.iina={playlist:{count:()=>1,add:()=>false,play(){throw new Error('Should not play');}},mpv:{command(){throw new Error('Should not clear');}}} as any;
     expect(handlePlayItem({videoId:'abcdefghijk',url:''})).toBe(false);
 });
-test('rapid selections coalesce and closing cancels a pending switch',async()=>{
+test('rapid selections coalesce, cleanup waits for load, and close cancels pending work',async()=>{
     const built=await Bun.build({entrypoints:['src/plugin/main.ts'],target:'browser',format:'iife'});
     const handlers:Record<string,Function>={},events:Record<string,Function[]>={};
     const timers=new Map<number,Function>();let next=0;const selected:string[]=[];const commands:string[]=[];
+    const status={url:''};
     runInNewContext(await built.outputs[0].text(),{setTimeout:(fn:Function)=>{timers.set(++next,fn);return next;},clearTimeout:(id:number)=>timers.delete(id),iina:{
-        console:{log(){},error(){}},event:{on(name:string,fn:Function){(events[name] ||= []).push(fn);}},
+        console:{log(){},error(){},warn(){}},event:{on(name:string,fn:Function){(events[name] ||= []).push(fn);}},
         sidebar:{loadFile(){},onMessage(name:string,fn:Function){handlers[name]=fn;},postMessage(){}},
-        global:{onMessage(){},postMessage(){}},preferences:{get:()=>false},core:{status:{url:''}},
+        global:{onMessage(){},postMessage(){}},preferences:{get:()=>false},core:{status},
         playlist:{count:()=>1,add(url:string){selected.push(url);return true;},play(){}},mpv:{command(name:string,args:string[]){commands.push([name,...args].join(" "));}},menu:{},utils:{},http:{},overlay:{}
     }});
     for(const fn of events['iina.window-loaded']) fn();
@@ -137,8 +138,17 @@ test('rapid selections coalesce and closing cancels a pending switch',async()=>{
     expect(commands).toEqual(["cycle pause"]);
     handlers.playItem({videoId:'abcdefghijk'});handlers.playItem({videoId:'12345678901'});
     expect(timers.size).toBe(1);
-    for(const fn of timers.values()) fn();timers.clear();
+    for(const fn of [...timers.values()]) fn();timers.clear();
     expect(selected).toEqual(['https://www.youtube.com/watch?v=12345678901']);
+    expect(commands).toEqual(["cycle pause"]);
+
+    status.url='https://www.youtube.com/watch?v=12345678901';
+    for(const fn of events['iina.file-loaded']) fn();
+    expect(commands).toEqual(["cycle pause"]);
+    expect(timers.size).toBe(1);
+    for(const fn of [...timers.values()]) fn();timers.clear();
+    expect(commands).toEqual(["cycle pause","playlist-clear"]);
+
     handlers.playItem({videoId:'abcdefghijk'});
     for(const fn of events['iina.window-will-close']) fn();
     expect(timers.size).toBe(0);
