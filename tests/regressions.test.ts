@@ -393,7 +393,7 @@ test('video activation uses native playlist lifecycle without reopening or leavi
         mpv: { command(name: string, args: string[]) { opened.push([name, args]); } }
     } as any;
     expect(handlePlayItem({ videoId, url: 'https://example.com/untrusted' })).toBe(true);
-    expect(opened).toEqual([["add", `https://www.youtube.com/watch?v=${videoId}`, 0], ["native-play", 0], ["playlist-clear", []]]);
+    expect(opened).toEqual([["add", `https://www.youtube.com/watch?v=${videoId}`, 0], ["native-play", 0]]);
     expect(handlePlayItem({ videoId: 'invalid', url: 'https://example.com' })).toBe(false);
     delete globalThis.iina;
 });

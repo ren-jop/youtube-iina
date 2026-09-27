@@ -27,7 +27,7 @@ For future updates, the plugin's GitHub repository is `ren-jop/youtube-iina`.
 
 ## Performance and intentional discovery
 
-Version 1.2.20 keeps the native playlist-switch path used in 1.2.6 and makes Japanese mode predictable again. Search parsing remains iterative and offscreen thumbnails wait until they are near the viewport before requesting/decoding. It still recovers idle players with stale playlist entries, avoids restarting the same pending video on repeated clicks, and stops discussion polling as soon as a new video is selected. Optional quality-setting failures do not prevent opening a video.
+Version 1.2.21 keeps the native playlist-switch path used in 1.2.6, with playlist cleanup deferred until the replacement file has loaded to avoid mutating IINA/mpv state mid-switch. Japanese mode retains the strict Search behavior from 1.2.20. Search parsing remains iterative and offscreen thumbnails wait until they are near the viewport before requesting/decoding. It still recovers idle players with stale playlist entries, avoids restarting the same pending video on repeated clicks, and stops discussion polling as soon as a new video is selected. Optional quality-setting failures do not prevent opening a video.
 
 Japanese mode applies to Home, Subscriptions and Search. When JP is on, English search text remains visible as typed but gets a Japanese discovery hint internally, and non-Japanese video titles are rejected before display. This keeps searches useful without letting English recommendations leak through the Japanese filter. Related still follows the language of the video you opened.
 

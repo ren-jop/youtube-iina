@@ -25,11 +25,7 @@ export function handlePlayItem(data: PlayItemPayload): boolean {
     const added = iina.playlist.add(url, 0) as unknown;
     if (added === false) return false;
     iina.playlist.play(0);
-    // Match the old replace behavior: don't autoplay the previous video at EOF.
-    try {
-        iina.mpv.command("playlist-clear", []);
-    } catch {
-        iina.console.warn("YouTube: video selected, but previous playlist entries could not be cleared");
-    }
+    // Do not mutate the playlist again until IINA confirms the new file loaded.
+    // Clearing immediately after play(0) can race the native playlist switch.
     return true;
 }
