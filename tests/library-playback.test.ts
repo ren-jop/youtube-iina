@@ -127,7 +127,12 @@ test('rapid selections coalesce, cleanup waits for load, and close cancels pendi
     const handlers:Record<string,Function>={},events:Record<string,Function[]>={};
     const timers=new Map<number,Function>();let next=0;const selected:string[]=[];const commands:string[]=[];
     const status={url:''};
-    runInNewContext(await built.outputs[0].text(),{setTimeout:(fn:Function)=>{timers.set(++next,fn);return next;},clearTimeout:(id:number)=>timers.delete(id),iina:{
+    runInNewContext(await built.outputs[0].text(),{
+        setTimeout:(fn:Function)=>{timers.set(++next,fn);return next;},
+        clearTimeout:(id:number)=>timers.delete(id),
+        setInterval:()=>999,
+        clearInterval:()=>{},
+        iina:{
         console:{log(){},error(){},warn(){}},event:{on(name:string,fn:Function){(events[name] ||= []).push(fn);}},
         sidebar:{loadFile(){},onMessage(name:string,fn:Function){handlers[name]=fn;},postMessage(){}},
         global:{onMessage(){},postMessage(){}},preferences:{get:()=>false},core:{status},
