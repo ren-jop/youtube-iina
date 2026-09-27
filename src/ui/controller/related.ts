@@ -1,4 +1,6 @@
 import { loadChannelVideos } from "../innertube/channels";
+import { isJapaneseTitle } from "../innertube/japanese";
+import { getOptions } from "../storage/libraryData";
 import { filterReason } from "../storage/feedFilters";
 import { selectedVideo, selectedVideoTitle } from "./playerUi";
 import type { PlaybackLifecycleEventPayload } from "../../shared/messages";
@@ -74,8 +76,14 @@ export function createRelatedController(dependencies: RelatedControllerDependenc
         renderRelated();
         let channelAdded = false, relatedAdded = false;
         let channelItems: FeedVideoItem[] = [];
+        const sourceTitle = source?.title || selectedVideoTitle(videoId);
+        const japaneseRelated = getOptions().japaneseMode && isJapaneseTitle(sourceTitle);
         const accept = async (incoming: FeedVideoItem[], fromChannel: boolean, limit = RELATED_ITEMS_LIMIT): Promise<void> => {
-            const filtered = incoming.filter(item => item.videoId !== videoId && !filterReason({...item, durationLabel: dependencies.resolveFeedItemPresentation(item).durationLabel}));
+            const filtered = incoming.filter(item =>
+                item.videoId !== videoId
+                && (!japaneseRelated || isJapaneseTitle(item.title))
+                && !filterReason({...item, durationLabel: dependencies.resolveFeedItemPresentation(item).durationLabel})
+            );
             const items = await dependencies.buildFinalFilteredFeedItems(filtered, limit);
             if (refreshId !== state.relatedRefreshSequence) return;
             if (fromChannel) channelAdded = items.length > 0; else relatedAdded = items.length > 0;
