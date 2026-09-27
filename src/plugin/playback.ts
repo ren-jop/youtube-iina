@@ -18,18 +18,17 @@ export function handlePlayItem(data: PlayItemPayload): boolean {
     // video size is ready. Raw loadfile bypasses this and can play new audio over
     // the previous frame, especially in fullscreen. Index 0 is valid even before
     // IINA refreshes its cached playlist after insertion.
-    if (iina.core?.status?.idle || iina.playlist.count() === 0) {
+    // Avoid reading core.status during a file transition. Native status
+    // pointers can be unstable while IINA/mpv is changing files; playlist
+    // count is sufficient to distinguish the initial empty/splash state.
+    if (iina.playlist.count() === 0) {
         iina.core.open(url); // No existing media/window lifecycle to preserve.
         return true;
     }
     const added = iina.playlist.add(url, 0) as unknown;
     if (added === false) return false;
     iina.playlist.play(0);
-    // Match the old replace behavior: don't autoplay the previous video at EOF.
-    try {
-        iina.mpv.command("playlist-clear", []);
-    } catch {
-        iina.console.warn("YouTube: video selected, but previous playlist entries could not be cleared");
-    }
+    // Do not mutate the playlist again until IINA confirms the new file loaded.
+    // Clearing immediately after play(0) can race the native playlist switch.
     return true;
 }
