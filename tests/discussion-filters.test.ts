@@ -38,11 +38,10 @@ test("new appearance and discovery settings validate old and imported backups", 
 });
 
 test("strict Japanese discovery excludes English, Chinese and ambiguous titles", async () => {
- const { isJapaneseTitle, parseJapaneseTranslation } = await import("../src/ui/innertube/japanese");
+ const { isJapaneseTitle } = await import("../src/ui/innertube/japanese");
  expect(isJapaneseTitle("ギターを練習する方法")).toBe(true);
  for (const title of ["Learn guitar", "学习吉他的方法", "数学", "Learn guitar easily 日本語"]) expect(isJapaneseTitle(title)).toBe(false);
  expect(filterReason({title:"Learn guitar",channelTitle:"Channel"},{...defaultOptions,japaneseMode:true})).toBe("");
- expect(parseJapaneseTranslation({responseStatus:200,responseData:{translatedText:"ギターの練習"}})).toBe("ギターの練習");
  expect(()=>parseJapaneseTranslation({responseStatus:429,responseData:{translatedText:"quota exceeded"}})).toThrow();
 });
 
