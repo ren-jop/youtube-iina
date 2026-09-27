@@ -10,6 +10,7 @@ import { exchangeTvDeviceCode, OAuthSlowDownError } from '../src/ui/auth/tvOAuth
 import { ensureHttpBridgeListener, setHttpBridgeApi } from '../src/ui/bridge/httpBridge';
 import { fetchLoggedInSubscriptionsFeed } from '../src/ui/innertube/feedBrowse';
 import {
+    buildJapaneseSearchQuery,
     isJapaneseTitle,
     isLikelyJapaneseDiscoveryText
 } from '../src/ui/innertube/japanese';
@@ -123,6 +124,11 @@ describe('personalized Home topics', () => {
 });
 
 describe('Japanese discovery', () => {
+    test('biases Latin search text toward Japanese without rewriting Japanese queries', () => {
+        expect(buildJapaneseSearchQuery('calculus')).toBe('calculus 日本語 解説');
+        expect(buildJapaneseSearchQuery('微分積分')).toBe('微分積分');
+    });
+
     test('keeps Japanese discovery strict without rejecting mixed Japanese titles', () => {
         expect(isLikelyJapaneseDiscoveryText(
             'Macで集中するための3つの方法',
