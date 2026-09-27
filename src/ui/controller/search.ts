@@ -1,5 +1,3 @@
-import { getOptions } from "../storage/libraryData";
-import { isJapaneseTitle, isLikelyJapaneseDiscoveryText, translateSearchToJapanese } from "../innertube/japanese";
 import { requestPlayback } from "./playerUi";
 import {
     SEARCH_CHANNELS_LIMIT,
@@ -336,20 +334,9 @@ export function createSearchController(dependencies: SearchControllerDependencie
         renderSearchResults();
 
         try {
-            if (getOptions().japaneseMode) {
-                // Translation is only a discovery aid. Keep the user's query in
-                // the UI and request unlocalized titles so English originals can
-                // be excluded instead of appearing as translated Japanese text.
-                setSearchStatus("Searching Japanese videos…");
-                const visibleQuery = normalizedQuery;
-                const translated = await translateSearchToJapanese(visibleQuery);
-                if (requestId !== searchRequestSequence) return;
-                if (!getOptions().japaneseMode) throw new Error("Japanese mode changed. Search again.");
-                if (searchInput && searchInput.value.trim() !== visibleQuery) return;
-                normalizedQuery = translated;
-                state.searchState.query = visibleQuery;
-                setSearchStatus("");
-            }
+            // Search is deliberate lookup, so keep the exact query and allow
+            // useful teachers/tutorials in any language. Japanese mode only
+            // constrains passive discovery feeds.
             const config = await getInnertubeConfig();
             const headers = buildWebInnertubeHeaders(config);
 
@@ -374,22 +361,9 @@ export function createSearchController(dependencies: SearchControllerDependencie
 
             const responseJson: unknown = JSON.parse(response.text);
             const parsed = parseSearchResponseFromParser(responseJson);
-            const japaneseMode = getOptions().japaneseMode;
-            const candidateChannels = japaneseMode
-                ? parsed.channels.filter((channel) =>
-                    isLikelyJapaneseDiscoveryText(channel.title, channel.title)
-                )
-                : parsed.channels;
-            const candidateVideos = japaneseMode
-                ? parsed.videos.filter((video) =>
-                    // The title itself must be Japanese. A Japanese channel name
-                    // must not rescue an English-titled upload in JP mode.
-                    isJapaneseTitle(video.title)
-                )
-                : parsed.videos;
-            const limitedChannels = candidateChannels.slice(0, SEARCH_CHANNELS_LIMIT);
+            const limitedChannels = parsed.channels.slice(0, SEARCH_CHANNELS_LIMIT);
             const channelsWithSubscriptionState = limitedChannels;
-            const limitedVideos = candidateVideos.slice(0, SEARCH_VIDEOS_LIMIT);
+            const limitedVideos = parsed.videos.slice(0, SEARCH_VIDEOS_LIMIT);
             const finalizedVideos = await buildFinalSearchVideos(limitedVideos);
 
             if (requestId !== searchRequestSequence) {
@@ -398,12 +372,7 @@ export function createSearchController(dependencies: SearchControllerDependencie
 
             state.searchState.channels = channelsWithSubscriptionState;
             state.searchState.videos = finalizedVideos;
-            setSearchStatus(
-                getOptions().japaneseMode
-                && finalizedVideos.length === 0
-                    ? "No strongly Japanese video results found. Try a broader search."
-                    : ""
-            );
+            setSearchStatus("");
             // Subscription state can take several requests. Show videos immediately.
             if (state.appMode === "logged_in") void resolveSearchChannelsSubscriptionState(limitedChannels).then(channels => {
                 if (requestId !== searchRequestSequence || state.appMode !== "logged_in") return;
