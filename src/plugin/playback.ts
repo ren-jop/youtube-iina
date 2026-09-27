@@ -18,10 +18,7 @@ export function handlePlayItem(data: PlayItemPayload): boolean {
     // video size is ready. Raw loadfile bypasses this and can play new audio over
     // the previous frame, especially in fullscreen. Index 0 is valid even before
     // IINA refreshes its cached playlist after insertion.
-    // Avoid reading core.status during a file transition. Native status
-    // pointers can be unstable while IINA/mpv is changing files; playlist
-    // count is sufficient to distinguish the initial empty/splash state.
-    if (iina.playlist.count() === 0) {
+    if (iina.core?.status?.idle || iina.playlist.count() === 0) {
         iina.core.open(url); // No existing media/window lifecycle to preserve.
         return true;
     }
