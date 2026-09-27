@@ -25,6 +25,7 @@ import {
 import { renderFeed as renderFeedView } from "../render/feed";
 import { state } from "../state";
 import { persistVideoMetadataCacheToStorage as persistVideoMetadataMapToStorage } from "../storage/videoMetaCache";
+import { isJapaneseTitle } from "../innertube/japanese";
 import type {
     ChannelFeedResult,
     FeedFetchResult,
@@ -39,10 +40,7 @@ import {
 } from "./feedPresentation";
 import { mapWithConcurrency } from "../utils/async";
 import { getOptions, loadLibraryData } from "../storage/libraryData";
-import {
-    getDiscoveryGuardSnapshot,
-    startIntentionalDiscoverySession
-} from "../storage/discoveryGuard";
+import { getDiscoveryGuardSnapshot } from "../storage/discoveryGuard";
 import {
     deriveHomeTopics,
     fillHomeTopics,
@@ -86,6 +84,12 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
         document.querySelector<HTMLElement>("[data-feed-topics]");
     const persistVideoMetadataCacheToStorage = (): void => {
         persistVideoMetadataMapToStorage(state.videoMetadataCacheByVideoId);
+    };
+
+    const filterPassiveDiscoveryLanguage = (items: FeedVideoItem[]): FeedVideoItem[] => {
+        return getOptions().japaneseMode
+            ? items.filter((item) => isJapaneseTitle(item.title))
+            : items;
     };
 
     const getVideoMetadataFromCache = (videoId: string): VideoMetadata | null => {
@@ -302,36 +306,31 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
     };
 
     const renderDiscoveryGuard = (): boolean => {
-        if (!discoveryGuardElement || state.appMode !== "logged_in") {
-            if (discoveryGuardElement) {
-                discoveryGuardElement.hidden = true;
-                discoveryGuardElement.replaceChildren();
-            }
-            return false;
-        }
+        if (!discoveryGuardElement) return false;
 
         const snapshot = getDiscoveryGuardSnapshot();
+        const line = document.createElement("p");
+        line.className = "yt-empty";
+
+        if (snapshot.focusMinutesRemaining > 0) {
+            line.textContent =
+                `Focus · about ${snapshot.focusMinutesRemaining} min left`
+                + (snapshot.focusPurpose ? ` · ${snapshot.focusPurpose}` : "")
+                + ". Home and Subscriptions are paused.";
+            discoveryGuardElement.replaceChildren(line);
+            discoveryGuardElement.hidden = false;
+            return true;
+        }
+
         if (snapshot.limitMinutes <= 0) {
             discoveryGuardElement.hidden = true;
             discoveryGuardElement.replaceChildren();
             return false;
         }
 
-        const line = document.createElement("p");
-        line.className = "yt-empty";
-        const controls = document.createElement("div");
-        controls.className = "yt-discussion-toolbar";
-
-        if (snapshot.intentionalMinutesRemaining > 0) {
-            line.textContent = `Intentional session · about ${snapshot.intentionalMinutesRemaining} min left${snapshot.intentionalPurpose ? ` · ${snapshot.intentionalPurpose}` : ""}`;
-            discoveryGuardElement.replaceChildren(line);
-            discoveryGuardElement.hidden = false;
-            return false;
-        }
-
-        if (!snapshot.blocked) {
+        if (!snapshot.dailyLimitReached) {
             if (snapshot.remainingMinutes <= 5) {
-                line.textContent = `About ${snapshot.remainingMinutes} min of Home discovery left today.`;
+                line.textContent = `About ${snapshot.remainingMinutes} min of passive browsing left today.`;
                 discoveryGuardElement.replaceChildren(line);
                 discoveryGuardElement.hidden = false;
             } else {
@@ -341,19 +340,19 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
             return false;
         }
 
-        line.textContent = `Daily Home discovery limit reached (${snapshot.limitMinutes} min). Search, Subscriptions, Related and channel pages still work.`;
-        for (const minutes of [15, 30]) {
-            const button = document.createElement("button");
-            button.type = "button";
-            button.textContent = `Intentional ${minutes} min`;
-            button.addEventListener("click", () => {
-                const purpose = window.prompt("What are you opening YouTube for right now?");
-                if (!purpose?.trim()) return;
-                startIntentionalDiscoverySession(minutes, purpose);
-                renderFeed();
-            });
-            controls.append(button);
-        }
+        const controls = document.createElement("div");
+        controls.className = "yt-discussion-toolbar";
+        const focus = document.createElement("button");
+        focus.type = "button";
+        focus.textContent = "Focus on something";
+        focus.addEventListener("click", () => {
+            document.dispatchEvent(new CustomEvent("youtube-focus-start-requested"));
+        });
+        controls.append(focus);
+
+        line.textContent =
+            `Daily passive browsing limit reached (${snapshot.limitMinutes} min). `
+            + "Search, Related, channels and Recent still work.";
         discoveryGuardElement.replaceChildren(line, controls);
         discoveryGuardElement.hidden = false;
         return true;
@@ -391,10 +390,12 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
                 : [];
         const visibleItems = discoveryBlocked
             ? []
-            : [...new Map(
-                [...baseVisibleItems, ...supplementalItems]
-                    .map((item) => [item.videoId, item] as const)
-            ).values()];
+            : filterPassiveDiscoveryLanguage(
+                [...new Map(
+                    [...baseVisibleItems, ...supplementalItems]
+                        .map((item) => [item.videoId, item] as const)
+                ).values()]
+            );
 
         renderFeedView({
             appMode: state.appMode,
@@ -412,7 +413,7 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
                 FEED_EMPTY_NO_FAVORITES_TEXT,
             defaultEmptyText:
                 discoveryBlocked
-                    ? "Home discovery is paused for today. Use an intentional session above, or open Search, Subscriptions, Related or a channel."
+                    ? "Passive browsing is paused. Use Search, Related, channels or Recent for something deliberate."
                     : state.appMode === "logged_in"
                 && activeHomeTopicId !== "all"
                     ? "No recommendations in this topic."
@@ -474,7 +475,10 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
                 const homeDisplayLimit = getOptions().japaneseMode
                     ? JAPANESE_HOME_ITEMS_LIMIT
                     : HOME_ITEMS_LIMIT;
-                const items = await buildFinalFilteredFeedItems(candidates, homeDisplayLimit);
+                const items = await buildFinalFilteredFeedItems(
+                    filterPassiveDiscoveryLanguage(candidates),
+                    homeDisplayLimit
+                );
                 if (refreshId !== state.feedRefreshSequence) {
                     return;
                 }
@@ -540,7 +544,10 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
                 completed.push(result);
                 // Show usable uploads without waiting for the slowest channel.
                 if (showProgressively && result.items.length) {
-                    const partial = await buildFinalFilteredFeedItems(mergeFeedItems(completed), FEED_ITEMS_LIMIT);
+                    const partial = await buildFinalFilteredFeedItems(
+                        filterPassiveDiscoveryLanguage(mergeFeedItems(completed)),
+                        FEED_ITEMS_LIMIT
+                    );
                     if (refreshId === state.feedRefreshSequence) { state.feedState.items = partial; renderFeed(); }
                 }
                 return result;
@@ -562,7 +569,10 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
         }
 
         const mergedItems = mergeFeedItems(channelResults);
-        const filteredItems = await buildFinalFilteredFeedItems(mergedItems, FEED_ITEMS_LIMIT);
+        const filteredItems = await buildFinalFilteredFeedItems(
+            filterPassiveDiscoveryLanguage(mergedItems),
+            FEED_ITEMS_LIMIT
+        );
         if (refreshId !== state.feedRefreshSequence) {
             return;
         }
