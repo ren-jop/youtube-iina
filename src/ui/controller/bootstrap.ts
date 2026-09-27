@@ -207,11 +207,35 @@ export function initializeSidebar(): void {
         }
     });
 
+    let lastPassiveBrowseInteractionAt = 0;
+    const notePassiveBrowseInteraction = (): void => {
+        if (state.activeView === "feed" || state.activeView === "subscriptions") {
+            lastPassiveBrowseInteractionAt = Date.now();
+        }
+    };
+    document.addEventListener("pointerdown", notePassiveBrowseInteraction, true);
+    document.addEventListener("wheel", notePassiveBrowseInteraction, { capture: true, passive: true });
+    document.addEventListener("keydown", (event) => {
+        if (["ArrowDown", "ArrowUp", "PageDown", "PageUp", "Home", "End"].includes(event.key)) {
+            notePassiveBrowseInteraction();
+        }
+    }, true);
+    document.querySelector<HTMLElement>(".yt-content")?.addEventListener(
+        "scroll",
+        notePassiveBrowseInteraction,
+        { passive: true }
+    );
+
     recordPassiveBrowsingActivity(false);
     window.setInterval(() => {
+        const now = Date.now();
+        const passiveView = state.activeView === "feed" || state.activeView === "subscriptions";
+        const recentlyBrowsing = now - lastPassiveBrowseInteractionAt <= 30000;
         const changed = recordPassiveBrowsingActivity(
-            (state.activeView === "feed" || state.activeView === "subscriptions")
-            && document.visibilityState !== "hidden"
+            passiveView
+            && recentlyBrowsing
+            && document.visibilityState !== "hidden",
+            now
         );
         if (changed) {
             feedController.renderFeed();
