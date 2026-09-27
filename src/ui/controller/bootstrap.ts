@@ -4,7 +4,8 @@ import { initializeDiscovery } from "./discovery";
 import { createDiscussionController } from "./discussion";
 import { renderHistory, initializePolish } from "./polish";
 import { initializeLibrary } from "./library";
-import { recordPlayedVideo } from "../storage/libraryData";
+import { getOptions, recordPlayedVideo } from "../storage/libraryData";
+import { shouldShowChannelInJapaneseMode } from "../utils/japaneseVisibility";
 import { recordDiscoveryActivity } from "../storage/discoveryGuard";
 import { recordDiagnostic } from "../bridge/diagnostics";
 import { initializeDiagnostics } from "../bridge/diagnostics";
@@ -100,8 +101,11 @@ export function initializeSidebar(): void {
     let searchController: SearchController | null = null;
 
     const renderFavorites = (): void => {
+        const japaneseMode = getOptions().japaneseMode;
         renderFavoritesView({
-            favorites: state.favorites,
+            favorites: state.favorites.filter(favorite =>
+                shouldShowChannelInJapaneseMode(favorite.title, japaneseMode)
+            ),
             elements: {
                 list: favoritesList,
                 emptyState: favoritesEmptyState
@@ -224,6 +228,8 @@ export function initializeSidebar(): void {
         subscriptionsController.renderSubscriptions();
         searchController?.renderSearchResults();
         relatedController.renderRelated();
+        renderHistory(feedController.playFeedItem);
+        renderFavorites();
 
         const key = (event as CustomEvent<string>).detail;
         if (

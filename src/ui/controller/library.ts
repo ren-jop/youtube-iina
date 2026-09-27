@@ -7,6 +7,7 @@ import {
     saveLibraryData,
     parseImport,
     mergeImport,
+    resolveJapaneseLockUntil,
     type ImportedData,
     type LocalOptions
 } from "../storage/libraryData";
@@ -18,8 +19,12 @@ function japaneseLockRemaining(until: string): string {
     if (minutes < 60) return `${minutes} min`;
     const hours = Math.ceil(minutes / 60);
     if (hours < 24) return `${hours} hr`;
-    return `${Math.ceil(hours / 24)} day${hours > 24 ? "s" : ""}`;
+    const days = Math.ceil(hours / 24);
+    if (days < 28) return `${days} day${days === 1 ? "" : "s"}`;
+    const months = Math.max(1, Math.round(days / 30));
+    return `${months} month${months === 1 ? "" : "s"}`;
 }
+
 
 export function applyLocalAppearance(): void {
     const options = loadLibraryData().options;
@@ -124,16 +129,7 @@ export function initializeLibrary(onImported: () => void): void {
         try {
             const data = loadLibraryData();
             const raw = lockDuration?.value || "1440";
-            let until: Date;
-            if (raw === "midnight") {
-                until = new Date();
-                until.setHours(24, 0, 0, 0);
-            } else {
-                const minutes = [60, 180, 360, 720, 1440].includes(Number(raw))
-                    ? Number(raw)
-                    : 1440;
-                until = new Date(Date.now() + minutes * 60000);
-            }
+            const until = resolveJapaneseLockUntil(raw);
 
             data.options.japaneseMode = true;
             data.options.japaneseLockUntil = until.toISOString();

@@ -1,4 +1,9 @@
 import { filterReason } from "../storage/feedFilters";
+import { getOptions } from "../storage/libraryData";
+import {
+    shouldShowChannelInJapaneseMode,
+    shouldShowVideoInJapaneseMode
+} from "../utils/japaneseVisibility";
 import { reconcileList } from "./reconcile";
 import type { SearchChannelResult, SearchState, SearchVideoResult, VideoMetadata } from "../types";
 import {
@@ -59,15 +64,20 @@ export function renderSearchResults(dependencies: SearchRenderDependencies): voi
 
     channelsList.replaceChildren();
 
+    const japaneseMode = getOptions().japaneseMode;
+    const visibleChannels = searchState.channels.filter(channel =>
+        shouldShowChannelInJapaneseMode(channel.title, japaneseMode)
+        && !filterReason({title:"",channelTitle:channel.title})
+    );
 
-    if (searchState.channels.length === 0) {
+    if (visibleChannels.length === 0) {
         setElementVisibility(channelsEmptyState, Boolean(searchState.query) && !searchState.isLoading);
         setElementVisibility(channelsList, false);
     } else {
         setElementVisibility(channelsEmptyState, false);
         setElementVisibility(channelsList, true);
 
-        searchState.channels.filter(channel => !filterReason({title:"",channelTitle:channel.title})).forEach((channel) => {
+        visibleChannels.forEach((channel) => {
             const item = document.createElement("li");
             item.className = "yt-item yt-item-channel-row";
 
@@ -111,8 +121,16 @@ export function renderSearchResults(dependencies: SearchRenderDependencies): voi
         });
     }
 
-    const visibleVideos = searchState.videos.filter(video => !filterReason({...video,durationLabel:resolveVideoPresentation(video,getVideoMetadataFromCache(video.videoId)).durationLabel}));
-    videosEmptyState.textContent = searchState.videos.length && !visibleVideos.length ? "All videos hidden by your filters. Adjust Settings & data to show more." : "No videos found.";
+    const languageVisibleVideos = searchState.videos.filter(video =>
+        shouldShowVideoInJapaneseMode(video.title, japaneseMode)
+    );
+    const visibleVideos = languageVisibleVideos.filter(video => !filterReason({...video,durationLabel:resolveVideoPresentation(video,getVideoMetadataFromCache(video.videoId)).durationLabel}));
+    videosEmptyState.textContent =
+        japaneseMode && searchState.videos.length > 0 && languageVisibleVideos.length === 0
+            ? "English videos are available only in Subscriptions while Japanese mode is on."
+            : searchState.videos.length && !visibleVideos.length
+                ? "All videos hidden by your filters. Adjust Settings & data to show more."
+                : "No videos found.";
     if (visibleVideos.length === 0) {
         reconcileList(videosList, [], () => "", () => "", () => document.createElement("li"));
         setElementVisibility(videosEmptyState, Boolean(searchState.query) && !searchState.isLoading);

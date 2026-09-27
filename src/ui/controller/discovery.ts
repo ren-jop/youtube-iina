@@ -9,7 +9,8 @@ function japaneseLockRemainingText(until: string): string {
     const hours = Math.ceil(minutes / 60);
     if (hours < 24) return `${hours}h`;
     const days = Math.ceil(hours / 24);
-    return `${days}d`;
+    if (days < 28) return `${days}d`;
+    return `${Math.max(1, Math.round(days / 30))}mo`;
 }
 
 // JP mode is discovery filtering, not a Japanese-learning onboarding flow.

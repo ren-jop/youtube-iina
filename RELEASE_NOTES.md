@@ -1,3 +1,11 @@
+## 1.2.18 — Longer Japanese locks and English isolation
+
+- Japanese-only blocks can now run for **3 days, 1 week, 2 weeks, 1 month, 2 months or 3 months**, in addition to the existing shorter choices and until-midnight option.
+- Month-long locks use calendar months and preserve the day where possible, instead of approximating three months as a fixed number of days.
+- While JP mode is active, English video cards are hidden from Home, Search, Related, History and channel browsing, and English saved-channel cards are hidden too.
+- **Subscriptions are the deliberate English exception**: the signed-in Subscriptions feed stays language-neutral, so existing English subscriptions remain accessible during a long Japanese-only block.
+- Added regression coverage for the three-month duration and the Subscriptions-only English exception.
+
 ## 1.2.17 — Japanese Home, subscription truth and intentional browsing
 
 - Japanese Home now targets about **50 videos** instead of 36, while keeping strict original-title filtering so English-titled uploads are not presented as Japanese.

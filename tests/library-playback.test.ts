@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, test } from 'bun:test';
 import { runInNewContext } from 'node:vm';
-import { DATA_KEY, defaultOptions, exportBackup, exportSubscriptionsCsv, loadLibraryData, mergeImport, parseImport, recordPlayedVideo, saveLibraryData } from '../src/ui/storage/libraryData';
+import { DATA_KEY, defaultOptions, exportBackup, exportSubscriptionsCsv, loadLibraryData, mergeImport, parseImport, recordPlayedVideo, resolveJapaneseLockUntil, saveLibraryData } from '../src/ui/storage/libraryData';
 import { FAVORITES_STORAGE_KEY } from '../src/ui/constants';
 import { filterByTopic } from '../src/ui/parsers/related';
 import { readLockupMetadata } from '../src/ui/parsers/lockupMetadata';
@@ -21,6 +21,17 @@ beforeEach(()=>{
 afterEach(()=>{globalThis.localStorage=originalStorage; delete globalThis.iina;});
 
 test('version report follows the installed manifest',()=>expect(diagnosticReport()).toContain(`IINA ${info.version}`));
+test('Japanese-only lock supports calendar durations up to three months',()=>{
+    const start=new Date(2026,0,31,10,15,0,0);
+    const oneMonth=resolveJapaneseLockUntil('month1',start);
+    const threeMonths=resolveJapaneseLockUntil('month3',start);
+    expect(oneMonth.getFullYear()).toBe(2026);
+    expect(oneMonth.getMonth()).toBe(1);
+    expect(oneMonth.getDate()).toBe(28);
+    expect(threeMonths.getMonth()).toBe(3);
+    expect(threeMonths.getDate()).toBe(30);
+    expect(resolveJapaneseLockUntil('month4',start).getTime()-start.getTime()).toBe(24*60*60*1000);
+});
 test('topic fallback rejects spicy food and generic title overlap',()=>{
     const items=['How to quit digital addictions','10 levels of spicy food','Why you should watch this video','Addiction and self control'].map(title=>({title}));
     expect(filterByTopic(items,'How to quit your digital addiction').map(x=>x.title)).toEqual([items[0].title,items[3].title]);
