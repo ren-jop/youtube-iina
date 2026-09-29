@@ -40,7 +40,11 @@ import {
 } from "./feedPresentation";
 import { mapWithConcurrency } from "../utils/async";
 import { getOptions, loadLibraryData } from "../storage/libraryData";
-import { getDiscoveryGuardSnapshot } from "../storage/discoveryGuard";
+import {
+    consumeDailyDistraction,
+    getDiscoveryGuardSnapshot,
+    isJapaneseDiscoveryActive
+} from "../storage/discoveryGuard";
 import {
     deriveHomeTopics,
     fillHomeTopics,
@@ -87,9 +91,12 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
     };
 
     const filterPassiveDiscoveryLanguage = (items: FeedVideoItem[]): FeedVideoItem[] => {
-        return getOptions().japaneseMode
-            ? items.filter((item) => isJapaneseTitle(item.title))
-            : items;
+        if (!isJapaneseDiscoveryActive()) return items;
+        const dailyVideoId = getDiscoveryGuardSnapshot().dailyDistractionVideoId;
+        return items.filter((item) =>
+            isJapaneseTitle(item.title)
+            || (dailyVideoId && item.videoId === dailyVideoId)
+        );
     };
 
     const getVideoMetadataFromCache = (videoId: string): VideoMetadata | null => {
@@ -198,7 +205,7 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
             activeHomeTopicId = "all";
         }
 
-        const japaneseMode = getOptions().japaneseMode;
+        const japaneseMode = isJapaneseDiscoveryActive();
         const buttons: HTMLButtonElement[] = [];
 
         const makeButton = (
@@ -316,7 +323,7 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
             line.textContent =
                 `Focus · about ${snapshot.focusMinutesRemaining} min left`
                 + (snapshot.focusPurpose ? ` · ${snapshot.focusPurpose}` : "")
-                + ". Home and Subscriptions are paused.";
+                + ". Home is paused; Subscriptions stay available.";
             discoveryGuardElement.replaceChildren(line);
             discoveryGuardElement.hidden = false;
             return true;
@@ -437,6 +444,15 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
             return;
         }
 
+        if (state.activeView === "feed" && !isJapaneseDiscoveryActive()) {
+            const consumed = consumeDailyDistraction(item.videoId);
+            if (consumed) {
+                document.dispatchEvent(new CustomEvent("youtube-daily-distraction-changed", {
+                    detail: { reason: "consumed", videoId: item.videoId }
+                }));
+            }
+        }
+
         requestPlayback(item);
     };
 
@@ -472,7 +488,7 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
                         ...homeResult.items.filter(item => previousVideoIds.has(item.videoId))
                     ]
                     : homeResult.items;
-                const homeDisplayLimit = getOptions().japaneseMode
+                const homeDisplayLimit = isJapaneseDiscoveryActive()
                     ? JAPANESE_HOME_ITEMS_LIMIT
                     : HOME_ITEMS_LIMIT;
                 const items = await buildFinalFilteredFeedItems(
