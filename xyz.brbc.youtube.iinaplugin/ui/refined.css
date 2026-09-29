@@ -103,8 +103,12 @@ button:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible,.
 .yt-content { background:transparent; }
 .yt-tabs { flex-wrap:wrap; overflow:visible; }
 .yt-search-shell:focus-within { box-shadow:none; }
-.yt-japanese-switch { display:flex; gap:5px; align-items:center; justify-content:flex-end; margin:0 4px 0 0; color:#aaa; font-size:11px; }
-.yt-japanese-switch input { accent-color:#bbb; }
+.yt-discovery-mode-switch { display:flex; align-items:center; margin:0 4px 0 0; border:1px solid #ffffff20; border-radius:3px; overflow:hidden; }
+.yt-discovery-mode-button { border:0; border-right:1px solid #ffffff18; background:transparent; color:#999; padding:5px 7px; font:inherit; font-size:10px; line-height:1; white-space:nowrap; cursor:pointer; }
+.yt-discovery-mode-button:last-child { border-right:0; }
+.yt-discovery-mode-button:hover:not(:disabled) { background:#ffffff0b; color:#ddd; }
+.yt-discovery-mode-button.is-active { background:#ffffff12; color:#eee; }
+.yt-discovery-mode-button:disabled { color:#666; cursor:default; }
 .yt-suggestions { margin:4px 8px 12px; color:#999; font-size:11px; }
 .yt-suggestions summary { cursor:pointer; }
 .yt-suggestions p { line-height:1.5; font-size:10px; }
