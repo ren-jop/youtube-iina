@@ -3,13 +3,10 @@ import { newestFirst, filterSubscriptions } from "./subscriptionTools";
 import { SUBSCRIPTIONS_EMPTY_TEXT, SUBSCRIPTIONS_ITEMS_LIMIT } from "../constants";
 import { subscriptionsEmptyState, subscriptionsList, subscriptionsStatus } from "../dom";
 import { describeFeedFetchFailure } from "../innertube/feedBrowse";
-import { isJapaneseTitle } from "../innertube/japanese";
 import { fetchChannelSubscriptionState } from "../innertube/subscription";
 import { mapWithConcurrency } from "../utils/async";
 import { renderSubscriptions as renderSubscriptionsView } from "../render/subscriptions";
 import { state } from "../state";
-import { getOptions } from "../storage/libraryData";
-import { getDiscoveryGuardSnapshot } from "../storage/discoveryGuard";
 import type { FeedFetchResult, FeedVideoItem } from "../types";
 
 interface SubscriptionsControllerDependencies {
@@ -35,52 +32,6 @@ export interface SubscriptionsController {
 
 export function createSubscriptionsController(dependencies: SubscriptionsControllerDependencies): SubscriptionsController {
     const subscriptionTruthCache = new Map<string, { subscribed: boolean; checkedAt: number }>();
-    const guardElement = document.querySelector<HTMLElement>("[data-subscriptions-guard]");
-
-    const passiveLanguageItems = (items: FeedVideoItem[]): FeedVideoItem[] => {
-        return getOptions().japaneseMode
-            ? items.filter((item) => isJapaneseTitle(item.title))
-            : items;
-    };
-
-    const renderGuard = (): boolean => {
-        if (!guardElement) return getDiscoveryGuardSnapshot().blocked;
-        const snapshot = getDiscoveryGuardSnapshot();
-
-        if (!snapshot.blocked) {
-            guardElement.hidden = true;
-            guardElement.replaceChildren();
-            return false;
-        }
-
-        const line = document.createElement("p");
-        line.className = "yt-empty";
-        if (snapshot.focusMinutesRemaining > 0) {
-            line.textContent =
-                `Focus · about ${snapshot.focusMinutesRemaining} min left`
-                + (snapshot.focusPurpose ? ` · ${snapshot.focusPurpose}` : "")
-                + ". Home and Subscriptions are paused.";
-            guardElement.replaceChildren(line);
-            guardElement.hidden = false;
-            return true;
-        }
-
-        const controls = document.createElement("div");
-        controls.className = "yt-discussion-toolbar";
-        const focus = document.createElement("button");
-        focus.type = "button";
-        focus.textContent = "Focus on something";
-        focus.addEventListener("click", () => {
-            document.dispatchEvent(new CustomEvent("youtube-focus-start-requested"));
-        });
-        controls.append(focus);
-        line.textContent =
-            `Daily passive browsing limit reached (${snapshot.limitMinutes} min). `
-            + "Search, Related, channels and Recent still work.";
-        guardElement.replaceChildren(line, controls);
-        guardElement.hidden = false;
-        return true;
-    };
 
     const filterConfirmedSubscriptions = async (items: FeedVideoItem[]): Promise<FeedVideoItem[]> => {
         const channelIds = [...new Set(
@@ -122,15 +73,7 @@ export function createSubscriptionsController(dependencies: SubscriptionsControl
 
     const renderSubscriptions = (): void => {
         const query = document.querySelector<HTMLInputElement>("[data-subscriptions-filter]")?.value || "";
-        const languageItems = passiveLanguageItems(state.subscriptionsState.items);
-        const browsingBlocked = renderGuard();
-        const visibleItems = browsingBlocked
-            ? []
-            : filterSubscriptions(languageItems, query);
-        const japaneseOnlyEmpty =
-            getOptions().japaneseMode
-            && state.subscriptionsState.items.length > 0
-            && languageItems.length === 0;
+        const visibleItems = filterSubscriptions(state.subscriptionsState.items, query);
 
         renderSubscriptionsView({
             appMode: state.appMode,
@@ -143,13 +86,9 @@ export function createSubscriptionsController(dependencies: SubscriptionsControl
                 emptyState: subscriptionsEmptyState,
                 status: subscriptionsStatus
             },
-            subscriptionsEmptyText: browsingBlocked
-                ? "Passive browsing is paused. Search directly for what you want to watch."
-                : query.trim()
-                    ? "No loaded subscription videos match your search."
-                    : japaneseOnlyEmpty
-                        ? "No Japanese subscription videos are in the loaded feed."
-                        : SUBSCRIPTIONS_EMPTY_TEXT,
+            subscriptionsEmptyText: query.trim()
+                ? "No loaded subscription videos match your search."
+                : SUBSCRIPTIONS_EMPTY_TEXT,
             signInEmptyText: "Sign in to load subscriptions.",
             onUpdateLoadingIndicators: dependencies.updateActiveViewLoadingIndicators,
             onPlayItem: dependencies.playFeedItem,
@@ -177,8 +116,7 @@ export function createSubscriptionsController(dependencies: SubscriptionsControl
 
         try {
             const subscriptionsResult = await dependencies.fetchLoggedInSubscriptionsFeed();
-            const languageCandidates = passiveLanguageItems(subscriptionsResult.items);
-            const confirmedItems = await filterConfirmedSubscriptions(languageCandidates);
+            const confirmedItems = await filterConfirmedSubscriptions(subscriptionsResult.items);
             const items = await dependencies.buildFinalFilteredFeedItems(newestFirst(confirmedItems), SUBSCRIPTIONS_ITEMS_LIMIT);
             if (refreshId !== state.subscriptionsRefreshSequence) {
                 return;
