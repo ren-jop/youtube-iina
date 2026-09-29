@@ -1,6 +1,7 @@
 import { loadChannelVideos } from "../innertube/channels";
 import { isJapaneseTitle } from "../innertube/japanese";
 import { getOptions } from "../storage/libraryData";
+import { getDiscoveryGuardSnapshot } from "../storage/discoveryGuard";
 import { filterReason } from "../storage/feedFilters";
 import { selectedVideo, selectedVideoTitle } from "./playerUi";
 import type { PlaybackLifecycleEventPayload } from "../../shared/messages";
@@ -45,8 +46,16 @@ export interface RelatedController {
 
 export function createRelatedController(dependencies: RelatedControllerDependencies): RelatedController {
     const renderRelated = (): void => {
+        const dailyJapanese = getDiscoveryGuardSnapshot().dailyDistractionConsumed;
         renderRelatedView({
-            relatedState: state.relatedState,
+            relatedState: dailyJapanese
+                ? {
+                    ...state.relatedState,
+                    items: state.relatedState.items.filter((item) =>
+                        isJapaneseTitle(item.title)
+                    )
+                }
+                : state.relatedState,
             elements: {
                 list: relatedList,
                 emptyState: relatedEmptyState,
@@ -77,7 +86,9 @@ export function createRelatedController(dependencies: RelatedControllerDependenc
         let channelAdded = false, relatedAdded = false;
         let channelItems: FeedVideoItem[] = [];
         const sourceTitle = source?.title || selectedVideoTitle(videoId);
-        const japaneseRelated = getOptions().japaneseMode && isJapaneseTitle(sourceTitle);
+        const japaneseRelated =
+            getDiscoveryGuardSnapshot().dailyDistractionConsumed
+            || (getOptions().japaneseMode && isJapaneseTitle(sourceTitle));
         const accept = async (incoming: FeedVideoItem[], fromChannel: boolean, limit = RELATED_ITEMS_LIMIT): Promise<void> => {
             const filtered = incoming.filter(item =>
                 item.videoId !== videoId

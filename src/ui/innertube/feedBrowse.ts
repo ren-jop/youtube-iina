@@ -1,6 +1,7 @@
 import { parseSearchResponse } from "../parsers/search";
 import { isJapaneseTitle } from "./japanese";
 import { getOptions } from "../storage/libraryData";
+import { getDiscoveryGuardSnapshot, isJapaneseDiscoveryActive } from "../storage/discoveryGuard";
 import { currentVideoTitle, filterByTopic, relatedCards, relatedFilter } from "../parsers/related";
 import {
     CHANNEL_BROWSE_MAX_PAGES,
@@ -349,7 +350,7 @@ export async function fetchLoggedInHomeFeed(
     // A deliberate Home refresh walks deeper into the recommendation
     // continuation so pressing Home can actually surface a different set
     // instead of simply repainting the same first page.
-    const japaneseMode = getOptions().japaneseMode;
+    const japaneseMode = isJapaneseDiscoveryActive();
     const displayLimit = japaneseMode
         ? JAPANESE_HOME_ITEMS_LIMIT
         : HOME_ITEMS_LIMIT;
@@ -548,7 +549,8 @@ export async function fetchRelatedFeed(videoId: string, title = ""): Promise<Fee
     // opened. JP discovery therefore keeps Japanese follow-ups for Japanese
     // videos, but an explicitly searched English tutorial can keep useful
     // English follow-ups.
-    const japaneseOnly = getOptions().japaneseMode && isJapaneseTitle(title);
+    const dailyJapanese = getDiscoveryGuardSnapshot().dailyDistractionConsumed;
+    const japaneseOnly = dailyJapanese || (getOptions().japaneseMode && isJapaneseTitle(title));
     const key = `${videoId}:${getOptions().relatedMode}:${japaneseOnly}:${title}`;
     const cached = relatedCache.get(key);
     if (cached && Date.now() - cached.at < 180000) return cached.result;

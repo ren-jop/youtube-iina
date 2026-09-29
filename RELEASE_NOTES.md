@@ -1,3 +1,13 @@
+## 1.2.22 — Study / JP and one distraction per day
+
+- Added two explicit discovery modes in the header: **Study / JP** and **Distract · 1/day**.
+- Distract mode allows normal Home browsing until you open one Home video. That choice is saved before playback starts, survives IINA restarts, and resets at local midnight.
+- After the daily distraction is used, Home, Search, and Related are immediately constrained to Japanese discovery for the rest of the day. Stale English Search/Related cards are hidden so they cannot become a second distraction path.
+- The chosen distraction video remains a valid same-video retry/replay exception; choosing it never grants another daily allowance.
+- Subscriptions are now always unrestricted by JP mode, Focus, the passive-browsing timer, and the daily distraction lock.
+- Focus and passive-browsing limits now apply to Home only.
+- Local-midnight reset is detected while IINA remains open and Home refreshes back into the selected mode automatically.
+
 ## 1.2.21 — Safer native video switching
 
 - Fixed a native playback race that could crash IINA when opening a video from the sidebar.

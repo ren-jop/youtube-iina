@@ -1,4 +1,4 @@
-import { getOptions } from "../storage/libraryData";
+import { isJapaneseDiscoveryActive } from "../storage/discoveryGuard";
 import {
     isJapaneseTitle,
     isLikelyJapaneseDiscoveryText
@@ -64,7 +64,7 @@ export function renderSearchResults(dependencies: SearchRenderDependencies): voi
 
     channelsList.replaceChildren();
 
-    const japaneseMode = getOptions().japaneseMode;
+    const japaneseMode = isJapaneseDiscoveryActive();
     const visibleChannels = searchState.channels.filter(channel =>
         (!japaneseMode || isLikelyJapaneseDiscoveryText(channel.title, channel.title))
         && !filterReason({title:"",channelTitle:channel.title})

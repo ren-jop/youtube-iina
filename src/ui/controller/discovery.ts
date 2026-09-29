@@ -19,11 +19,11 @@ function japaneseLockRemainingText(until: string): string {
 }
 
 export function initializeDiscovery(navigate: (view:ViewName)=>void, search:(query:string)=>Promise<void>): void {
-    const toggle = document.querySelector<HTMLInputElement>("[data-japanese-toggle]")!;
+    const studyButton = document.querySelector<HTMLButtonElement>("[data-study-mode]");
+    const distractButton = document.querySelector<HTMLButtonElement>("[data-distract-mode]");
     const focusButton = document.querySelector<HTMLButtonElement>("[data-focus-start]");
     const focusStatus = document.querySelector<HTMLElement>("[data-focus-status]");
     const homeButton = document.querySelector<HTMLButtonElement>("[data-home-refresh]");
-    const subscriptionsTab = document.querySelector<HTMLButtonElement>('.yt-tab[data-view="subscriptions"]');
 
     const beginFocus = () => {
         const snapshot = getDiscoveryGuardSnapshot();
@@ -46,60 +46,103 @@ export function initializeDiscovery(navigate: (view:ViewName)=>void, search:(que
         void search(purpose.trim());
     };
 
+    let lastDailyConsumed = getDiscoveryGuardSnapshot().dailyDistractionConsumed;
+
     const sync = () => {
         const options = getOptions();
         const lockRemaining = japaneseLockRemainingText(options.japaneseLockUntil);
-        toggle.checked = options.japaneseMode;
-        toggle.disabled = Boolean(lockRemaining);
-        toggle.parentElement?.setAttribute(
-            "title",
-            lockRemaining
-                ? `Japanese discovery lock active for about ${lockRemaining}`
-                : "Japanese discovery"
-        );
+        const guard = getDiscoveryGuardSnapshot();
+        const dailyConsumed = guard.dailyDistractionConsumed;
+        const forcedByDailyChoice = dailyConsumed && !options.japaneseMode;
 
-        const focus = getDiscoveryGuardSnapshot();
-        const focusActive = focus.focusMinutesRemaining > 0;
+        if (studyButton) {
+            const active = options.japaneseMode || forcedByDailyChoice;
+            studyButton.classList.toggle("is-active", active);
+            studyButton.setAttribute("aria-pressed", String(active));
+            studyButton.title = forcedByDailyChoice
+                ? "Japanese discovery is locked until local midnight because today’s distraction video has been used."
+                : lockRemaining
+                    ? `Japanese discovery lock active for about ${lockRemaining}`
+                    : "Use Japanese discovery now.";
+        }
+        if (distractButton) {
+            const available = !dailyConsumed && !lockRemaining;
+            const active = available && !options.japaneseMode;
+            distractButton.disabled = !available;
+            distractButton.classList.toggle("is-active", active);
+            distractButton.setAttribute("aria-pressed", String(active));
+            distractButton.textContent = dailyConsumed ? "Distract · used" : "Distract · 1/day";
+            distractButton.title = dailyConsumed
+                ? "Today’s distraction video has already been chosen. Discovery stays Japanese until local midnight."
+                : lockRemaining
+                    ? "Unavailable while a Japanese discovery lock is active."
+                    : "Browse Home normally until you open one video; then discovery becomes Japanese until local midnight.";
+        }
+
+        const focusActive = guard.focusMinutesRemaining > 0;
         if (focusButton) {
             focusButton.classList.toggle("is-active", focusActive);
             focusButton.title = focusActive
-                ? `Focus: ${focus.focusPurpose || "active"} · about ${focus.focusMinutesRemaining} min left · click to end early`
+                ? `Focus: ${guard.focusPurpose || "active"} · about ${guard.focusMinutesRemaining} min left · click to end early`
                 : `Start a ${options.focusSessionMinutes}-minute focus session`;
             focusButton.setAttribute(
                 "aria-label",
                 focusActive
-                    ? `Focus session active: about ${focus.focusMinutesRemaining} minutes left`
+                    ? `Focus session active: about ${guard.focusMinutesRemaining} minutes left`
                     : "Start focus session"
             );
         }
         if (focusStatus) {
-            focusStatus.hidden = !focusActive;
+            focusStatus.hidden = !focusActive && !forcedByDailyChoice;
             focusStatus.textContent = focusActive
-                ? `Focus · ${focus.focusMinutesRemaining} min · ${focus.focusPurpose}`
-                : "";
+                ? `Focus · ${guard.focusMinutesRemaining} min · ${guard.focusPurpose}`
+                : forcedByDailyChoice
+                    ? "Daily distraction used · discovery stays Japanese until local midnight · Subscriptions stay open."
+                    : "";
         }
         if (homeButton) homeButton.disabled = focusActive;
-        if (subscriptionsTab) subscriptionsTab.disabled = focusActive;
+
+        if (lastDailyConsumed && !dailyConsumed) {
+            document.dispatchEvent(new CustomEvent("youtube-daily-distraction-changed", {
+                detail: { reason: "midnight-reset" }
+            }));
+        }
+        lastDailyConsumed = dailyConsumed;
     };
 
-    toggle.addEventListener("change", () => {
+    studyButton?.addEventListener("click", () => {
         try {
-            const data=loadLibraryData();
-            const lockRemaining = japaneseLockRemainingText(data.options.japaneseLockUntil);
-            if (lockRemaining && !toggle.checked) {
-                toggle.checked = true;
-                return;
-            }
-            data.options.japaneseMode=toggle.checked;
+            const data = loadLibraryData();
+            data.options.japaneseMode = true;
             saveLibraryData(data);
             document.dispatchEvent(new CustomEvent("youtube-options-changed", { detail: "japaneseMode" }));
-        } catch { sync(); }
+        } catch {
+            sync();
+        }
+    });
+
+    distractButton?.addEventListener("click", () => {
+        try {
+            const guard = getDiscoveryGuardSnapshot();
+            const data = loadLibraryData();
+            const lockRemaining = japaneseLockRemainingText(data.options.japaneseLockUntil);
+            if (guard.dailyDistractionConsumed || lockRemaining) {
+                sync();
+                return;
+            }
+            data.options.japaneseMode = false;
+            saveLibraryData(data);
+            document.dispatchEvent(new CustomEvent("youtube-options-changed", { detail: "japaneseMode" }));
+        } catch {
+            sync();
+        }
     });
 
     focusButton?.addEventListener("click", beginFocus);
     document.addEventListener("youtube-focus-start-requested", beginFocus);
     document.addEventListener("youtube-focus-session-changed", sync);
-    document.addEventListener("youtube-options-changed",sync);
+    document.addEventListener("youtube-daily-distraction-changed", sync);
+    document.addEventListener("youtube-options-changed", sync);
     window.setInterval(sync, 15000);
     sync();
 }
