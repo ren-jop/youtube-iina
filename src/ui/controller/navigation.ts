@@ -57,7 +57,7 @@ export function createNavigationController(onViewChanged?: () => void): Navigati
         }
 
         const focusActive = getDiscoveryGuardSnapshot().focusMinutesRemaining > 0;
-        if (focusActive && (normalizedViewName === "feed" || normalizedViewName === "subscriptions")) {
+        if (focusActive && normalizedViewName === "feed") {
             normalizedViewName = "search";
         }
 
