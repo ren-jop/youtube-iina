@@ -1,4 +1,4 @@
-import { getOptions } from "../storage/libraryData";
+import { isJapaneseDiscoveryActive } from "../storage/discoveryGuard";
 import {
     buildJapaneseSearchQuery,
     isJapaneseTitle,
@@ -340,7 +340,7 @@ export function createSearchController(dependencies: SearchControllerDependencie
         renderSearchResults();
 
         try {
-            const japaneseMode = getOptions().japaneseMode;
+            const japaneseMode = isJapaneseDiscoveryActive();
             const requestQuery = japaneseMode
                 ? buildJapaneseSearchQuery(normalizedQuery)
                 : normalizedQuery;
