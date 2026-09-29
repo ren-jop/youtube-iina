@@ -8,6 +8,8 @@ interface DiscoveryGuardState {
     lastTickAt: number;
     focusUntil: number;
     focusPurpose: string;
+    dailyDistractionVideoId: string;
+    dailyDistractionAt: number;
 }
 
 export interface DiscoveryGuardSnapshot {
@@ -18,6 +20,9 @@ export interface DiscoveryGuardSnapshot {
     remainingMinutes: number;
     focusMinutesRemaining: number;
     focusPurpose: string;
+    dailyDistractionConsumed: boolean;
+    dailyDistractionVideoId: string;
+    japaneseDiscoveryActive: boolean;
 }
 
 function localDayKey(now: number): string {
@@ -35,7 +40,9 @@ function freshState(now: number): DiscoveryGuardState {
         usedMs: 0,
         lastTickAt: now,
         focusUntil: 0,
-        focusPurpose: ""
+        focusPurpose: "",
+        dailyDistractionVideoId: "",
+        dailyDistractionAt: 0
     };
 }
 
@@ -63,7 +70,13 @@ function loadState(now = Date.now()): DiscoveryGuardState {
             usedMs: Number.isFinite(parsed.usedMs) ? Math.max(0, Number(parsed.usedMs)) : 0,
             lastTickAt: Number.isFinite(parsed.lastTickAt) ? Number(parsed.lastTickAt) : now,
             focusUntil,
-            focusPurpose: focusPurpose.slice(0, 160)
+            focusPurpose: focusPurpose.slice(0, 160),
+            dailyDistractionVideoId: typeof parsed.dailyDistractionVideoId === "string"
+                ? parsed.dailyDistractionVideoId.slice(0, 32)
+                : "",
+            dailyDistractionAt: Number.isFinite(parsed.dailyDistractionAt)
+                ? Math.max(0, Number(parsed.dailyDistractionAt))
+                : 0
         };
     } catch {
         return freshState(now);
@@ -76,6 +89,22 @@ function saveState(value: DiscoveryGuardState): void {
     } catch {
         // Browsing should still work when local storage is unavailable.
     }
+}
+
+export function consumeDailyDistraction(videoId: string, now = Date.now()): boolean {
+    const normalizedVideoId = videoId.trim();
+    if (!normalizedVideoId || getOptions().japaneseMode) return false;
+    const state = loadState(now);
+    if (state.dailyDistractionVideoId) return false;
+    state.dailyDistractionVideoId = normalizedVideoId;
+    state.dailyDistractionAt = now;
+    state.lastTickAt = now;
+    saveState(state);
+    return true;
+}
+
+export function isJapaneseDiscoveryActive(now = Date.now()): boolean {
+    return getOptions().japaneseMode || Boolean(loadState(now).dailyDistractionVideoId);
 }
 
 export function recordPassiveBrowsingActivity(active: boolean, now = Date.now()): boolean {
@@ -97,11 +126,12 @@ export function recordPassiveBrowsingActivity(active: boolean, now = Date.now())
     const after = getDiscoveryGuardSnapshot(now);
     return before.blocked !== after.blocked
         || before.focusMinutesRemaining !== after.focusMinutesRemaining
-        || before.remainingMinutes !== after.remainingMinutes;
+        || before.remainingMinutes !== after.remainingMinutes
+        || before.dailyDistractionConsumed !== after.dailyDistractionConsumed;
 }
 
 // Kept as an alias for older call sites/backups while the guard moves from
-// "Home discovery" to passive browsing across Home + Subscriptions.
+// "Home discovery" to interaction-based browsing time.
 export const recordDiscoveryActivity = recordPassiveBrowsingActivity;
 
 export function startFocusSession(minutes: number, purpose: string, now = Date.now()): void {
@@ -134,6 +164,7 @@ export function getDiscoveryGuardSnapshot(now = Date.now()): DiscoveryGuardSnaps
     const focusMs = Math.max(0, state.focusUntil - now);
     const remainingMs = limitMinutes > 0 ? Math.max(0, limitMs - state.usedMs) : 0;
     const dailyLimitReached = limitMinutes > 0 && state.usedMs >= limitMs;
+    const dailyDistractionConsumed = Boolean(state.dailyDistractionVideoId);
 
     return {
         blocked: dailyLimitReached || focusMs > 0,
@@ -142,6 +173,9 @@ export function getDiscoveryGuardSnapshot(now = Date.now()): DiscoveryGuardSnaps
         usedMinutes: Math.floor(state.usedMs / 60000),
         remainingMinutes: limitMinutes > 0 ? Math.ceil(remainingMs / 60000) : 0,
         focusMinutesRemaining: Math.ceil(focusMs / 60000),
-        focusPurpose: focusMs > 0 ? state.focusPurpose : ""
+        focusPurpose: focusMs > 0 ? state.focusPurpose : "",
+        dailyDistractionConsumed,
+        dailyDistractionVideoId: state.dailyDistractionVideoId,
+        japaneseDiscoveryActive: options.japaneseMode || dailyDistractionConsumed
     };
 }
