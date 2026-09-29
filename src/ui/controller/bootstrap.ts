@@ -209,7 +209,7 @@ export function initializeSidebar(): void {
 
     let lastPassiveBrowseInteractionAt = 0;
     const notePassiveBrowseInteraction = (): void => {
-        if (state.activeView === "feed" || state.activeView === "subscriptions") {
+        if (state.activeView === "feed") {
             lastPassiveBrowseInteractionAt = Date.now();
         }
     };
@@ -229,7 +229,7 @@ export function initializeSidebar(): void {
     recordPassiveBrowsingActivity(false);
     window.setInterval(() => {
         const now = Date.now();
-        const passiveView = state.activeView === "feed" || state.activeView === "subscriptions";
+        const passiveView = state.activeView === "feed";
         const recentlyBrowsing = now - lastPassiveBrowseInteractionAt <= 30000;
         const changed = recordPassiveBrowsingActivity(
             passiveView
@@ -239,7 +239,6 @@ export function initializeSidebar(): void {
         );
         if (changed) {
             feedController.renderFeed();
-            subscriptionsController.renderSubscriptions();
         }
     }, 15000);
 
@@ -254,15 +253,20 @@ export function initializeSidebar(): void {
         const key = (event as CustomEvent<string>).detail;
         if (key === "japaneseMode") {
             void feedController.refreshFeed(true);
-            if (state.appMode === "logged_in") {
-                void subscriptionsController.refreshSubscriptions(true);
-            }
         }
     });
     document.addEventListener("youtube-focus-session-changed", () => {
         feedController.renderFeed();
-        subscriptionsController.renderSubscriptions();
         navigationController.setActiveView(navigationController.getActiveView());
+    });
+    document.addEventListener("youtube-daily-distraction-changed", (event) => {
+        const reason = (event as CustomEvent<{ reason?: string }>).detail?.reason || "";
+        feedController.renderFeed();
+        searchController?.renderSearchResults();
+        relatedController.renderRelated();
+        if (reason === "midnight-reset") {
+            void feedController.refreshFeed(true);
+        }
     });
     initializeDiscovery(navigationController.setActiveView, searchController.performSearch);
     initializePolish(navigationController.setActiveView);
