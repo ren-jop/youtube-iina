@@ -1,3 +1,12 @@
+## 1.2.23 — Playback quality and smooth high-FPS selection
+
+- Fixed the capped 1080p/720p yt-dlp selector so 60 fps H.264/VP9 streams are preferred before 30 fps fallbacks.
+- Avoids AV1 until safer codec fallbacks are exhausted, reducing software-decoding stutter on older Intel Macs.
+- Fixed the fallback order so an available high-quality separate video stream is no longer skipped in favor of a lower-quality combined stream.
+- **Auto** no longer forces a second `bestvideo+bestaudio` policy; it leaves IINA's active resolver configuration alone.
+- Clarified that IINA's official **Online Media** plugin runs yt-dlp with its own quality preference and therefore takes precedence when enabled.
+- Added regression coverage for the high-FPS selector and resolver hand-off.
+
 ## 1.2.22 — Study / JP and one distraction per day
 
 - Added two explicit discovery modes in the header: **Study / JP** and **Distract · 1/day**.

@@ -27,7 +27,7 @@ For future updates, the plugin's GitHub repository is `ren-jop/youtube-iina`.
 
 ## Performance and intentional discovery
 
-Version 1.2.22 adds explicit **Study / JP** and **Distract · 1/day** discovery modes while keeping the safer native playlist-switch path from 1.2.21. Distract mode lets Home browse normally until one Home video is opened; that choice is saved before playback, survives IINA restarts, and then keeps discovery Japanese until local midnight. Search parsing remains iterative and offscreen thumbnails wait until they are near the viewport before requesting/decoding. The player still recovers idle windows with stale playlist entries, avoids restarting the same pending video on repeated clicks, and defers playlist cleanup until the replacement file has loaded.
+Version 1.2.23 fixes playback format selection while keeping the **Study / JP** and **Distract · 1/day** discovery modes from 1.2.22. Capped 1080p/720p playback now prefers high-frame-rate H.264/VP9 streams before 30 fps or AV1 fallbacks, and Auto stops overriding the active resolver policy. Distract mode lets Home browse normally until one Home video is opened; that choice is saved before playback, survives IINA restarts, and then keeps discovery Japanese until local midnight. Search parsing remains iterative and offscreen thumbnails wait until they are near the viewport before requesting/decoding. The player still recovers idle windows with stale playlist entries, avoids restarting the same pending video on repeated clicks, and defers playlist cleanup until the replacement file has loaded.
 
 Study / JP applies to Home and Search; **Subscriptions are always unrestricted**. When Study / JP is on, English search text remains visible as typed but gets a Japanese discovery hint internally, and non-Japanese video titles are rejected before display. After the daily distraction video is used, Home, Search and Related stay Japanese until local midnight so stale English cards cannot become a second distraction path. The chosen distraction video itself remains available for retry/replay.
 
@@ -59,7 +59,7 @@ Settings & data includes a single dark appearance, surface opacity, Japanese dis
 - Logged-in mode with personalized Home and Subscriptions feeds.
 - Related video recommendations for what to watch next.
 - Channel/video search and channel favorites management.
-- Playback in IINA by opening standard YouTube watch URLs.
+- Playback in IINA by opening standard YouTube watch URLs. When the official Online Media plugin is enabled, its own video-quality preference is the resolver of record; this sidebar cannot overwrite another plugin's preferences.
 - Optional SponsorBlock integration with per-segment controls (`ignore`, `skip`) for Sponsor, Unpaid/Self Promotion, and Preview/Recap.
 
 ## Screenshot
