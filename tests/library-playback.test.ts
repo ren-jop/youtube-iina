@@ -6,7 +6,7 @@ import { filterByTopic } from '../src/ui/parsers/related';
 import { readLockupMetadata } from '../src/ui/parsers/lockupMetadata';
 import { diagnosticReport } from '../src/ui/bridge/diagnostics';
 import info from '../xyz.brbc.youtube.iinaplugin/Info.json';
-import { handlePlayItem } from '../src/plugin/playback';
+import { handlePlayItem, playbackFormatForQuality } from '../src/plugin/playback';
 import { installDataTransfer } from '../src/plugin/dataTransfer';
 import {
     getDiscoveryGuardSnapshot,
@@ -169,6 +169,17 @@ test('idle player with a stale playlist recovers through native open',()=>{
 test('optional quality errors do not block same-window playback',()=>{
  let played=-1;globalThis.iina={console:{warn(){}},core:{status:{idle:false}},playlist:{count:()=>1,add:()=>true,play:(index:number)=>played=index},mpv:{set(){throw Error('unsupported option');},command(){}}} as any;
  expect(handlePlayItem({videoId:'abcdefghijk',url:'',quality:'1080'})).toBe(true);expect(played).toBe(0);
+});
+
+test('quality format prefers high FPS hardware-friendly streams and auto leaves the resolver alone',()=>{
+ const format=playbackFormatForQuality('1080')!;
+ expect(format.startsWith('bestvideo[height<=1080][fps>30][vcodec^=avc1]+bestaudio/')).toBe(true);
+ expect(format).toContain('bestvideo[height<=1080][fps>30][vcodec^=vp9]+bestaudio');
+ expect(format).toContain('bestvideo[height<=1080][fps>30][vcodec!^=av01]+bestaudio');
+ expect(format.indexOf('[fps>30]')).toBeLessThan(format.indexOf('/best[height<=1080]'));
+ expect(playbackFormatForQuality('720')).toContain('[height<=720][fps>30]');
+ expect(playbackFormatForQuality('auto')).toBeNull();
+ expect(playbackFormatForQuality(undefined)).toBeNull();
 });
 
 test('playlist cleanup failure does not report a successfully selected video as failed',()=>{
