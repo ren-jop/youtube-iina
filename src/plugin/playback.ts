@@ -1,14 +1,36 @@
 import type { PlayItemPayload } from "../shared/messages";
 
+export function playbackFormatForQuality(quality: PlayItemPayload["quality"]): string | null {
+    if (quality !== "1080" && quality !== "720") return null;
+
+    const height = quality;
+    // Keep high-frame-rate streams ahead of 30 fps fallbacks, while preferring
+    // codecs that are much more likely to use hardware decode on older Intel
+    // Macs. AV1 is intentionally left until the generic fallbacks because a
+    // software-decoded AV1 stream can look like "low FPS" even at high quality.
+    return [
+        `bestvideo[height<=${height}][fps>30][vcodec^=avc1]+bestaudio`,
+        `bestvideo[height<=${height}][fps>30][vcodec^=vp9]+bestaudio`,
+        `bestvideo[height<=${height}][fps>30][vcodec!^=av01]+bestaudio`,
+        `bestvideo[height<=${height}][vcodec^=avc1]+bestaudio`,
+        `bestvideo[height<=${height}][vcodec^=vp9]+bestaudio`,
+        `bestvideo[height<=${height}][vcodec!^=av01]+bestaudio`,
+        `bestvideo[height<=${height}][fps>30]+bestaudio`,
+        `bestvideo[height<=${height}]+bestaudio`,
+        `best[height<=${height}]`,
+        "best"
+    ].join("/");
+}
+
 export function handlePlayItem(data: PlayItemPayload): boolean {
     if (!data || typeof data.videoId !== "string" || !/^[A-Za-z0-9_-]{11}$/.test(data.videoId)) return false;
     try {
-        if (data.quality === "1080" || data.quality === "720") {
-            const height = data.quality;
-            iina.mpv.set("ytdl-format", `bestvideo[height<=${height}][vcodec^=avc1]+bestaudio/best[height<=${height}]/bestvideo[height<=${height}]+bestaudio/best[height<=${height}]/best`);
-        } else if (data.quality === "auto") {
-            iina.mpv.set("ytdl-format", "bestvideo+bestaudio/best");
-        }
+        const format = playbackFormatForQuality(data.quality);
+        // "auto" deliberately leaves the resolver alone. IINA's official
+        // Online Media plugin runs yt-dlp with its own preference and does not
+        // consume mpv's ytdl-format option, so forcing a second "best" policy
+        // here is misleading and can also override native resolver settings.
+        if (format) iina.mpv.set("ytdl-format", format);
     } catch {
         // An optional quality preference must not prevent opening a video.
         iina.console.warn("YouTube: quality preference unavailable; using player defaults");
