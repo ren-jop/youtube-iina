@@ -47,6 +47,7 @@ import {
 } from "../storage/discoveryGuard";
 import {
     deriveHomeTopics,
+    deriveJapaneseInterestQueries,
     fillHomeTopics,
     filterHomeItemsByTopic,
     homeTopicLabel,
@@ -279,6 +280,7 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
         items: FeedVideoItem[]
     ): FeedVideoItem[] => {
         const history = loadLibraryData().history;
+        const japaneseMode = isJapaneseDiscoveryActive();
         const preferredChannels = [
             ...state.subscriptionsState.items.map(
                 (item) => item.channelTitle
@@ -290,7 +292,10 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
         const ranked = rankPersonalizedHomeItems(
             items,
             history,
-            preferredChannels
+            preferredChannels,
+            japaneseMode
+                ? { strength: 1.8, demoteWatched: true }
+                : undefined
         );
         availableHomeTopics = fillHomeTopics(
             deriveHomeTopics(
@@ -482,18 +487,46 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
                     getValidTvAccessToken: dependencies.getValidTvAccessToken,
                     refreshTvAccessToken: dependencies.refreshTvAccessToken
                 }, forceRefresh);
-                const candidates = forceRefresh && previousVideoIds.size > 0
+                const japaneseMode = isJapaneseDiscoveryActive();
+                let candidates = forceRefresh && previousVideoIds.size > 0
                     ? [
                         ...homeResult.items.filter(item => !previousVideoIds.has(item.videoId)),
                         ...homeResult.items.filter(item => previousVideoIds.has(item.videoId))
                     ]
                     : homeResult.items;
-                const homeDisplayLimit = isJapaneseDiscoveryActive()
+
+                if (japaneseMode) {
+                    const history = loadLibraryData().history;
+                    const interestQueries = deriveJapaneseInterestQueries(
+                        history,
+                        forceRefresh ? 4 : 3
+                    );
+                    const interestBatches = await mapWithConcurrency(
+                        interestQueries,
+                        2,
+                        (query) => fetchHomeTopicRecommendations(
+                            query,
+                            true,
+                            10
+                        )
+                    );
+                    candidates = [...new Map(
+                        [
+                            ...candidates,
+                            ...interestBatches.flat()
+                        ].map((item) => [item.videoId, item] as const)
+                    ).values()];
+                }
+
+                const homeDisplayLimit = japaneseMode
                     ? JAPANESE_HOME_ITEMS_LIMIT
                     : HOME_ITEMS_LIMIT;
+                const candidateLimit = japaneseMode
+                    ? homeDisplayLimit + 40
+                    : homeDisplayLimit;
                 const items = await buildFinalFilteredFeedItems(
                     filterPassiveDiscoveryLanguage(candidates),
-                    homeDisplayLimit
+                    candidateLimit
                 );
                 if (refreshId !== state.feedRefreshSequence) {
                     return;
@@ -501,7 +534,8 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
 
                 if (items.length || !homeResult.failureReason) {
                     state.feedState.items =
-                        updateHomePersonalization(items);
+                        updateHomePersonalization(items)
+                            .slice(0, homeDisplayLimit);
                 }
                 state.feedState.isLoading = false;
                 state.feedState.warning = "";

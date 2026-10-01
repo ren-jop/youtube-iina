@@ -149,6 +149,31 @@ export function homeTopicMatches(
     );
 }
 
+const INTEREST_STOP_WORDS = new Set([
+    "about", "after", "again", "best", "build", "building", "course",
+    "explained", "from", "guide", "into", "learn", "learning", "make",
+    "making", "more", "most", "new", "part", "review", "the", "this",
+    "tutorial", "using", "video", "watch", "what", "when", "where", "with",
+    "your", "youtube"
+]);
+
+function interestTokens(value: string): string[] {
+    const matches = value
+        .normalize("NFKC")
+        .toLocaleLowerCase()
+        .match(/[a-z][a-z0-9+#.-]{2,}/g) || [];
+
+    return [...new Set(
+        matches
+            .map((token) => token.replace(/^[.+-]+|[.+-]+$/g, ""))
+            .filter((token) =>
+                token.length >= 3
+                && !INTEREST_STOP_WORDS.has(token)
+                && !/^\d+$/.test(token)
+            )
+    )].slice(0, 8);
+}
+
 function topicAffinityFromHistory(
     history: HistoryItem[]
 ): Map<string, number> {
@@ -174,19 +199,80 @@ function topicAffinityFromHistory(
     return scores;
 }
 
+export interface HomeRankingOptions {
+    strength?: number;
+    demoteWatched?: boolean;
+}
+
+export function deriveJapaneseInterestQueries(
+    history: HistoryItem[],
+    maxQueries = 4
+): string[] {
+    if (!history.length || maxQueries <= 0) return [];
+
+    const topicAffinity = topicAffinityFromHistory(history);
+    const topicQueries = HOME_TOPICS
+        .map((topic) => ({
+            query: topic.labelJa,
+            score: topicAffinity.get(topic.id) || 0
+        }))
+        .filter((entry) => entry.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .map((entry) => entry.query);
+
+    const tokenScores = new Map<string, number>();
+    history.slice(0, 100).forEach((item, index) => {
+        const recency = 1 / (1 + index / 14);
+        for (const token of interestTokens(item.title)) {
+            tokenScores.set(
+                token,
+                (tokenScores.get(token) || 0) + recency
+            );
+        }
+    });
+
+    const tokenQueries = [...tokenScores.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, Math.max(2, maxQueries))
+        .map(([token]) => `${token} 日本語`);
+
+    const topicBudget = Math.min(
+        topicQueries.length,
+        Math.max(1, Math.ceil(maxQueries / 2))
+    );
+    const tokenBudget = Math.max(0, maxQueries - topicBudget);
+
+    return [...new Set([
+        ...topicQueries.slice(0, topicBudget),
+        ...tokenQueries.slice(0, tokenBudget)
+    ])].slice(0, Math.max(0, maxQueries));
+}
+
 export function rankPersonalizedHomeItems(
     items: FeedVideoItem[],
     history: HistoryItem[],
-    preferredChannelTitles: string[] = []
+    preferredChannelTitles: string[] = [],
+    options: HomeRankingOptions = {}
 ): FeedVideoItem[] {
     if (items.length < 2 || history.length === 0) {
         return items;
     }
 
+    const strength = Math.max(
+        0.5,
+        Math.min(3, Number(options.strength) || 1)
+    );
     const topicAffinity =
         topicAffinityFromHistory(history);
     const channelAffinity =
         new Map<string, number>();
+    const tokenAffinity =
+        new Map<string, number>();
+    const watchedVideoIds = new Set(
+        options.demoteWatched
+            ? history.slice(0, 120).map((item) => item.videoId)
+            : []
+    );
     const preferredChannels = new Set(
         preferredChannelTitles
             .map((title) =>
@@ -199,14 +285,23 @@ export function rankPersonalizedHomeItems(
         const channel = item.channelTitle
             .trim()
             .toLocaleLowerCase();
-        if (!channel) return;
-
         const recency = 1 / (1 + index / 20);
-        channelAffinity.set(
-            channel,
-            (channelAffinity.get(channel) || 0)
-            + recency
-        );
+
+        if (channel) {
+            channelAffinity.set(
+                channel,
+                (channelAffinity.get(channel) || 0)
+                + recency
+            );
+        }
+
+        for (const token of interestTokens(item.title)) {
+            tokenAffinity.set(
+                token,
+                (tokenAffinity.get(token) || 0)
+                + recency
+            );
+        }
     });
 
     return items
@@ -216,13 +311,21 @@ export function rankPersonalizedHomeItems(
                 .toLocaleLowerCase();
             let score =
                 (channelAffinity.get(channel) || 0)
-                * 2.4;
+                * 2.4
+                * strength;
 
             if (
                 channel
                 && preferredChannels.has(channel)
             ) {
                 score += 1.8;
+            }
+
+            for (const token of interestTokens(item.title)) {
+                score +=
+                    (tokenAffinity.get(token) || 0)
+                    * 0.72
+                    * strength;
             }
 
             for (const topic of HOME_TOPICS) {
@@ -233,12 +336,17 @@ export function rankPersonalizedHomeItems(
                 )) {
                     score +=
                         (topicAffinity.get(topic.id) || 0)
-                        * 0.85;
+                        * 0.85
+                        * strength;
                 }
             }
 
-            // Preserve YouTube's own personalized ordering as the primary
-            // signal; local history is only a gentle re-rank.
+            if (watchedVideoIds.has(item.videoId)) {
+                score -= 8 * strength;
+            }
+
+            // Preserve YouTube's own ordering as an exploration signal, but
+            // allow Japanese mode to react clearly to local viewing history.
             score +=
                 (items.length - index)
                 / Math.max(1, items.length)

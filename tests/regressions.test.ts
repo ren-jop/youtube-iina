@@ -16,6 +16,7 @@ import {
 } from '../src/ui/innertube/japanese';
 import {
     deriveHomeTopics,
+    deriveJapaneseInterestQueries,
     filterHomeItemsByTopic,
     rankPersonalizedHomeItems
 } from '../src/ui/controller/feedTopics';
@@ -105,6 +106,49 @@ describe('personalized Home topics', () => {
             'chemistry01',
             'chemistry02'
         ]);
+    });
+
+    test('derives Japanese discovery seeds from recent viewing interests', () => {
+        const history = [
+            {
+                videoId: 'rustwatch01',
+                title: 'Rust embedded firmware on RP2040',
+                channelTitle: 'Embedded Lab',
+                playedAt: new Date().toISOString()
+            },
+            {
+                videoId: 'chemwatch01',
+                title: 'Organic chemistry reaction mechanisms',
+                channelTitle: 'Science Lab',
+                playedAt: new Date(Date.now() - 1000).toISOString()
+            }
+        ];
+
+        const queries = deriveJapaneseInterestQueries(history, 4);
+        expect(queries).toContain('工学');
+        expect(queries.some(query => query === 'rust 日本語')).toBe(true);
+    });
+
+    test('Japanese personalization demotes watched videos and follows recent interests', () => {
+        const watchedChemistry = {
+            ...chemistry,
+            videoId: 'watchedchem1'
+        };
+        const history = [{
+            videoId: 'watchedchem1',
+            title: '有機化学の反応機構をわかりやすく解説',
+            channelTitle: 'Science Lab',
+            playedAt: new Date().toISOString()
+        }];
+        const ranked = rankPersonalizedHomeItems(
+            [watchedChemistry, football, chemistry2],
+            history,
+            [],
+            { strength: 1.8, demoteWatched: true }
+        );
+
+        expect(ranked[0].videoId).toBe('chemistry02');
+        expect(ranked.at(-1)?.videoId).toBe('watchedchem1');
     });
 
     test('recent history and preferred channels gently re-rank Home', () => {
@@ -600,4 +644,3 @@ test('Related uses channel uploads when YouTube next fails and excludes the play
     expect(state.relatedState.status).toBe('');
     expect(state.relatedState.isLoading).toBe(false);
 });
-

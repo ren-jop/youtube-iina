@@ -5,7 +5,7 @@ import { createDiscussionController } from "./discussion";
 import { renderHistory, initializePolish } from "./polish";
 import { initializeLibrary } from "./library";
 import { recordPlayedVideo } from "../storage/libraryData";
-import { recordPassiveBrowsingActivity } from "../storage/discoveryGuard";
+import { isJapaneseDiscoveryActive, recordPassiveBrowsingActivity } from "../storage/discoveryGuard";
 import { recordDiagnostic } from "../bridge/diagnostics";
 import { initializeDiagnostics } from "../bridge/diagnostics";
 import { ensureHttpBridgeListener, setHttpBridgeApi } from "../bridge/httpBridge";
@@ -175,8 +175,21 @@ export function initializeSidebar(): void {
             else discussionController.suspend();
             if (payload.event === "file-loaded" && payload.videoId) {
                 const item = [...state.feedState.items, ...state.searchState.videos, ...state.relatedState.items, ...state.subscriptionsState.items].find(item => item.videoId === payload.videoId) || selectedVideo(payload.videoId);
-                try { recordPlayedVideo({ videoId: payload.videoId, title: item?.title || "", channelTitle: item?.channelTitle || "" }); }
-                catch { recordDiagnostic("Could not save local viewing history"); }
+                try {
+                    recordPlayedVideo({
+                        videoId: payload.videoId,
+                        title: item?.title || "",
+                        channelTitle: item?.channelTitle || ""
+                    });
+                    if (
+                        state.appMode === "logged_in"
+                        && isJapaneseDiscoveryActive()
+                    ) {
+                        void feedController.refreshFeed(true);
+                    }
+                } catch {
+                    recordDiagnostic("Could not save local viewing history");
+                }
                 renderHistory(feedController.playFeedItem);
             }
         },
