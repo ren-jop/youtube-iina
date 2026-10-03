@@ -1,4 +1,6 @@
-import { isJapaneseDiscoveryActive } from "../storage/discoveryGuard";
+import { getDiscoveryGuardSnapshot } from "../storage/discoveryGuard";
+import { getOptions } from "../storage/libraryData";
+import { isEducationalContent } from "../controller/feedTopics";
 import {
     isJapaneseTitle,
     isLikelyJapaneseDiscoveryText
@@ -64,9 +66,12 @@ export function renderSearchResults(dependencies: SearchRenderDependencies): voi
 
     channelsList.replaceChildren();
 
-    const japaneseMode = isJapaneseDiscoveryActive();
+    const options = getOptions();
+    const guard = getDiscoveryGuardSnapshot();
+    const strictJapanese = options.japaneseMode;
+    const studyGuard = guard.dailyDistractionConsumed && !strictJapanese;
     const visibleChannels = searchState.channels.filter(channel =>
-        (!japaneseMode || isLikelyJapaneseDiscoveryText(channel.title, channel.title))
+        (!strictJapanese || isLikelyJapaneseDiscoveryText(channel.title, channel.title))
         && !filterReason({title:"",channelTitle:channel.title})
     );
 
@@ -122,14 +127,18 @@ export function renderSearchResults(dependencies: SearchRenderDependencies): voi
     }
 
     const languageVisibleVideos = searchState.videos.filter(video =>
-        !japaneseMode || isJapaneseTitle(video.title)
+        !strictJapanese && !studyGuard
+        || isJapaneseTitle(video.title)
+        || (studyGuard && isEducationalContent(video.title, video.channelTitle))
     );
     const visibleVideos = languageVisibleVideos.filter(video =>
         !filterReason({...video,durationLabel:resolveVideoPresentation(video,getVideoMetadataFromCache(video.videoId)).durationLabel})
     );
     videosEmptyState.textContent =
-        japaneseMode && searchState.videos.length > 0 && languageVisibleVideos.length === 0
+        strictJapanese && searchState.videos.length > 0 && languageVisibleVideos.length === 0
             ? "No Japanese videos found for this search."
+            : studyGuard && searchState.videos.length > 0 && languageVisibleVideos.length === 0
+                ? "No Japanese or educational videos found for this search."
             : searchState.videos.length && !visibleVideos.length
                 ? "All videos hidden by your filters. Adjust Settings & data to show more."
                 : "No videos found.";

@@ -3,11 +3,9 @@ import { newestFirst, filterSubscriptions } from "./subscriptionTools";
 import { SUBSCRIPTIONS_EMPTY_TEXT, SUBSCRIPTIONS_ITEMS_LIMIT } from "../constants";
 import { subscriptionsEmptyState, subscriptionsList, subscriptionsStatus } from "../dom";
 import { describeFeedFetchFailure } from "../innertube/feedBrowse";
-import { fetchChannelSubscriptionState } from "../innertube/subscription";
-import { mapWithConcurrency } from "../utils/async";
 import { renderSubscriptions as renderSubscriptionsView } from "../render/subscriptions";
 import { state } from "../state";
-import type { FeedFetchResult, FeedVideoItem } from "../types";
+import type { FeedFetchResult, FeedVideoItem, SearchChannelResult } from "../types";
 
 interface SubscriptionsControllerDependencies {
     updateActiveViewLoadingIndicators: () => void;
@@ -20,6 +18,7 @@ interface SubscriptionsControllerDependencies {
         statsLine: string;
     };
     fetchLoggedInSubscriptionsFeed: () => Promise<FeedFetchResult>;
+    fetchLoggedInSubscriptionChannels?: () => Promise<SearchChannelResult[]>;
     buildFinalFilteredFeedItems: (items: FeedVideoItem[], limit: number) => Promise<FeedVideoItem[]>;
     getValidTvAccessToken: () => Promise<string>;
     refreshTvAccessToken: () => Promise<string>;
@@ -31,49 +30,101 @@ export interface SubscriptionsController {
 }
 
 export function createSubscriptionsController(dependencies: SubscriptionsControllerDependencies): SubscriptionsController {
-    const subscriptionTruthCache = new Map<string, { subscribed: boolean; checkedAt: number }>();
-
-    const filterConfirmedSubscriptions = async (items: FeedVideoItem[]): Promise<FeedVideoItem[]> => {
-        const channelIds = [...new Set(
-            items.map((item) => item.channelId?.trim() || "").filter(Boolean)
-        )];
-        if (!channelIds.length) return items;
-
-        const truth = new Map<string, boolean>();
-        await mapWithConcurrency(channelIds, 4, async (channelId) => {
-            const cached = subscriptionTruthCache.get(channelId);
-            if (cached && Date.now() - cached.checkedAt < 10 * 60 * 1000) {
-                truth.set(channelId, cached.subscribed);
-                return;
-            }
-
-            try {
-                const result = await fetchChannelSubscriptionState(channelId, {
-                    isTvAuthAvailable: () => Boolean(state.tvAuthCache),
-                    getValidTvAccessToken: dependencies.getValidTvAccessToken,
-                    refreshTvAccessToken: dependencies.refreshTvAccessToken
-                });
-                if (result.isSubscribed !== null) {
-                    subscriptionTruthCache.set(channelId, {
-                        subscribed: result.isSubscribed,
-                        checkedAt: Date.now()
-                    });
-                    truth.set(channelId, result.isSubscribed);
-                }
-            } catch {
-                // Unknown state keeps the item; only confirmed non-subscriptions are removed.
-            }
-        });
-
-        return items.filter((item) => {
+    const channelsFromItems = (items: FeedVideoItem[]): SearchChannelResult[] => {
+        const channels = new Map<string, SearchChannelResult>();
+        for (const item of items) {
             const channelId = item.channelId?.trim();
-            return !channelId || truth.get(channelId) !== false;
+            if (!channelId || channels.has(channelId)) continue;
+            channels.set(channelId, {
+                channelId,
+                title: item.channelTitle || "Channel",
+                thumbnailUrl: "",
+                channelHandle: "",
+                isSubscribed: true
+            });
+        }
+        return [...channels.values()];
+    };
+
+    const mergeSubscriptionChannels = (
+        primary: SearchChannelResult[],
+        items: FeedVideoItem[],
+        fallback: SearchChannelResult[] = []
+    ): SearchChannelResult[] => {
+        const merged = new Map<string, SearchChannelResult>();
+        for (const channel of primary) {
+            if (!channel.channelId) continue;
+            merged.set(channel.channelId, { ...channel, isSubscribed: true });
+        }
+        for (const channel of channelsFromItems(items)) {
+            if (!merged.has(channel.channelId)) merged.set(channel.channelId, channel);
+        }
+        if (primary.length === 0) {
+            for (const channel of fallback) {
+                if (!merged.has(channel.channelId)) merged.set(channel.channelId, channel);
+            }
+        }
+        return [...merged.values()].sort((a, b) => a.title.localeCompare(b.title));
+    };
+
+    const renderSubscriptionChannels = (query: string): void => {
+        const container = document.querySelector<HTMLElement>("[data-subscription-channels]");
+        if (!container) return;
+
+        if (state.appMode !== "logged_in") {
+            container.replaceChildren();
+            container.hidden = true;
+            return;
+        }
+
+        const normalized = query.trim().toLocaleLowerCase();
+        const channels = state.subscriptionChannels.filter((channel) =>
+            !normalized
+            || channel.title.toLocaleLowerCase().includes(normalized)
+            || channel.channelHandle.toLocaleLowerCase().includes(normalized)
+        );
+
+        const buttons = channels.map((channel) => {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "yt-subscription-channel";
+            button.title = channel.title;
+
+            if (channel.thumbnailUrl) {
+                const image = document.createElement("img");
+                image.className = "yt-subscription-channel-avatar";
+                image.src = channel.thumbnailUrl;
+                image.alt = "";
+                image.loading = "lazy";
+                image.decoding = "async";
+                button.append(image);
+            } else {
+                const fallback = document.createElement("span");
+                fallback.className = "yt-subscription-channel-avatar yt-subscription-channel-fallback";
+                fallback.textContent = channel.title.slice(0, 1).toUpperCase();
+                button.append(fallback);
+            }
+
+            const label = document.createElement("span");
+            label.className = "yt-subscription-channel-label";
+            label.textContent = channel.title;
+            button.append(label);
+            button.addEventListener("click", () => {
+                document.dispatchEvent(new CustomEvent("youtube-open-channel", {
+                    detail: { ...channel, isSubscribed: true }
+                }));
+            });
+            return button;
         });
+
+        container.replaceChildren(...buttons);
+        container.hidden = buttons.length === 0;
     };
 
     const renderSubscriptions = (): void => {
         const query = document.querySelector<HTMLInputElement>("[data-subscriptions-filter]")?.value || "";
         const visibleItems = filterSubscriptions(state.subscriptionsState.items, query);
+        renderSubscriptionChannels(query);
 
         renderSubscriptionsView({
             appMode: state.appMode,
@@ -103,6 +154,7 @@ export function createSubscriptionsController(dependencies: SubscriptionsControl
         if (state.appMode !== "logged_in") {
             state.subscriptionsState.isLoading = false;
             state.subscriptionsState.items = [];
+            state.subscriptionChannels = [];
             state.subscriptionsState.status = "Sign in to load subscriptions.";
             state.subscriptionsState.warning = "";
             renderSubscriptions();
@@ -115,9 +167,14 @@ export function createSubscriptionsController(dependencies: SubscriptionsControl
         renderSubscriptions();
 
         try {
+            const channelResultsPromise = dependencies.fetchLoggedInSubscriptionChannels
+                ? dependencies.fetchLoggedInSubscriptionChannels().catch(() => [])
+                : Promise.resolve<SearchChannelResult[]>([]);
             const subscriptionsResult = await dependencies.fetchLoggedInSubscriptionsFeed();
-            const confirmedItems = await filterConfirmedSubscriptions(subscriptionsResult.items);
-            const items = await dependencies.buildFinalFilteredFeedItems(newestFirst(confirmedItems), SUBSCRIPTIONS_ITEMS_LIMIT);
+            const items = await dependencies.buildFinalFilteredFeedItems(
+                newestFirst(subscriptionsResult.items),
+                SUBSCRIPTIONS_ITEMS_LIMIT
+            );
             if (refreshId !== state.subscriptionsRefreshSequence) {
                 return;
             }
@@ -125,6 +182,9 @@ export function createSubscriptionsController(dependencies: SubscriptionsControl
             state.subscriptionsState.isLoading = false;
             if (!subscriptionsResult.failureReason || items.length > 0) {
                 state.subscriptionsState.items = items;
+            }
+            if (state.subscriptionChannels.length === 0) {
+                state.subscriptionChannels = mergeSubscriptionChannels([], items);
             }
             if (subscriptionsResult.failureReason) {
                 const statusCodeSuffix = Number.isFinite(subscriptionsResult.statusCode)
@@ -138,6 +198,18 @@ export function createSubscriptionsController(dependencies: SubscriptionsControl
             }
             state.subscriptionsState.warning = "";
             renderSubscriptions();
+
+            void channelResultsPromise.then((channelResults) => {
+                if (refreshId !== state.subscriptionsRefreshSequence) return;
+                state.subscriptionChannels = mergeSubscriptionChannels(
+                    channelResults,
+                    state.subscriptionsState.items,
+                    state.subscriptionChannels
+                );
+                renderSubscriptionChannels(
+                    document.querySelector<HTMLInputElement>("[data-subscriptions-filter]")?.value || ""
+                );
+            });
         } catch (error) {
             if (refreshId !== state.subscriptionsRefreshSequence) {
                 return;

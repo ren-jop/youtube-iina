@@ -1,11 +1,17 @@
 import { sendHttpRequest } from "../bridge/httpBridge";
 import { getOptions } from "../storage/libraryData";
 import type { FeedVideoItem } from "../types";
+import { newestFirst } from "../controller/subscriptionTools";
 import { getInnertubeConfig } from "./config";
 import { fetchChannelFeedFromInnertube } from "./feedBrowse";
 import { buildInnertubeUrl, buildWebClientContext, buildWebInnertubeHeaders } from "./request";
 
-export interface ChannelIdentity { channelId?: string; videoId?: string; title?: string }
+export interface ChannelIdentity {
+    channelId?: string;
+    videoId?: string;
+    title?: string;
+    isSubscribed?: boolean;
+}
 interface ChannelVideos { channelId: string; title: string; items: FeedVideoItem[] }
 const cache = new Map<string, {at: number; result: ChannelVideos}>();
 const pending = new Map<string, Promise<ChannelVideos>>();
@@ -46,13 +52,24 @@ export async function loadChannelVideos(source: ChannelIdentity): Promise<Channe
     if (cached && Date.now() - cached.at < 180000) return cached.result;
     const existing = pending.get(key); if (existing) return existing;
     const request = (async () => {
-        // One page returns the latest uploads without waiting for pagination.
-        const response = await fetchChannelFeedFromInnertube(identity.channelId, 24, 1);
+        // Channel browsing is deliberate, so load enough uploads for local
+        // channel search without requiring repeated network requests.
+        const response = await fetchChannelFeedFromInnertube(identity.channelId, 60, 3);
         if (response.failureReason && !response.items.length) {
             if (cached) return cached.result;
             throw new Error("Could not load channel videos. Open the channel again to retry.");
         }
-        const items = response.items.filter(item => !item.channelId || item.channelId === identity.channelId).map(item => ({...item, channelId: identity.channelId, channelTitle: !item.channelTitle || item.channelTitle === "Unknown channel" ? identity.title : item.channelTitle}));
+        const items = newestFirst(
+            response.items
+                .filter(item => !item.channelId || item.channelId === identity.channelId)
+                .map(item => ({
+                    ...item,
+                    channelId: identity.channelId,
+                    channelTitle: !item.channelTitle || item.channelTitle === "Unknown channel"
+                        ? identity.title
+                        : item.channelTitle
+                }))
+        );
         const result = {...identity, items};
         if (items.length) cache.set(key, {at: Date.now(), result});
         if (cache.size > 12) cache.delete(cache.keys().next().value!);

@@ -12,6 +12,7 @@ import type {
     FavoriteChannel,
     FeedState,
     SearchState,
+    SearchChannelResult,
     UiSettings,
     TvOAuthCache,
     VideoMetadataCacheMap,
@@ -38,6 +39,7 @@ export interface UiState {
     searchState: SearchState;
     feedState: FeedState;
     subscriptionsState: FeedState;
+    subscriptionChannels: SearchChannelResult[];
     relatedState: FeedState;
 }
 
@@ -77,6 +79,7 @@ export const state: UiState = {
         status: "",
         warning: ""
     },
+    subscriptionChannels: [],
     relatedState: {
         isLoading: false,
         items: [],

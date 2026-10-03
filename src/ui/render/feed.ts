@@ -1,4 +1,4 @@
-import type { AppMode, FeedState, FeedVideoItem } from "../types";
+import type { FeedState, FeedVideoItem } from "../types";
 import {
     renderPlayableVideoList,
     setElementVisibility,
@@ -14,11 +14,8 @@ export interface FeedRenderElements {
 }
 
 export interface FeedRenderDependencies {
-    appMode: AppMode;
-    favoritesCount: number;
     feedState: FeedState;
     elements: FeedRenderElements;
-    feedEmptyNoFavoritesText: string;
     defaultEmptyText: string;
     onUpdateLoadingIndicators: () => void;
     onPlayItem: (item: FeedVideoItem) => void;
@@ -27,11 +24,8 @@ export interface FeedRenderDependencies {
 
 export function renderFeed(dependencies: FeedRenderDependencies): void {
     const {
-        appMode,
-        favoritesCount,
         feedState,
         elements,
-        feedEmptyNoFavoritesText,
         defaultEmptyText,
         onUpdateLoadingIndicators,
         onPlayItem,
@@ -43,19 +37,6 @@ export function renderFeed(dependencies: FeedRenderDependencies): void {
         return;
     }
 
-    if (appMode === "anonymous" && favoritesCount === 0) {
-        list.replaceChildren();
-        onUpdateLoadingIndicators();
-        emptyState.textContent = feedEmptyNoFavoritesText;
-        if (status) {
-            status.hidden = true;
-            status.textContent = "";
-            status.classList.remove("yt-status-warning");
-        }
-        setElementVisibility(emptyState, true);
-        setElementVisibility(list, false);
-        return;
-    }
 
     renderPlayableVideoList({
         state: feedState,

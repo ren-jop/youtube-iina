@@ -4,8 +4,11 @@ import {
     authPanelUrl,
     authStatus,
     authToggleButton,
+    chatTab,
+    commentsTab,
     favoritesTab,
     feedTab,
+    playbackTools,
     relatedTab,
     subscriptionsTab
 } from "../dom";
@@ -99,7 +102,10 @@ export function createAuthController(dependencies: AuthControllerDependencies): 
                 feedTab,
                 subscriptionsTab,
                 favoritesTab,
-                relatedTab
+                relatedTab,
+                commentsTab,
+                chatTab,
+                playbackTools
             },
             getActiveView: dependencies.getActiveView,
             setActiveView: dependencies.setActiveView

@@ -4,6 +4,7 @@ import { getOptions } from "../storage/libraryData";
 import { getDiscoveryGuardSnapshot } from "../storage/discoveryGuard";
 import { filterReason } from "../storage/feedFilters";
 import { selectedVideo, selectedVideoTitle } from "./playerUi";
+import { isEducationalContent } from "./feedTopics";
 import type { PlaybackLifecycleEventPayload } from "../../shared/messages";
 import {
     RELATED_EMPTY_TEXT,
@@ -46,13 +47,14 @@ export interface RelatedController {
 
 export function createRelatedController(dependencies: RelatedControllerDependencies): RelatedController {
     const renderRelated = (): void => {
-        const dailyJapanese = getDiscoveryGuardSnapshot().dailyDistractionConsumed;
+        const dailyStudyGuard = getDiscoveryGuardSnapshot().dailyDistractionConsumed;
         renderRelatedView({
-            relatedState: dailyJapanese
+            relatedState: dailyStudyGuard
                 ? {
                     ...state.relatedState,
                     items: state.relatedState.items.filter((item) =>
                         isJapaneseTitle(item.title)
+                        || isEducationalContent(item.title, item.channelTitle)
                     )
                 }
                 : state.relatedState,
@@ -87,7 +89,10 @@ export function createRelatedController(dependencies: RelatedControllerDependenc
         let channelItems: FeedVideoItem[] = [];
         const sourceTitle = source?.title || selectedVideoTitle(videoId);
         const japaneseRelated =
-            getDiscoveryGuardSnapshot().dailyDistractionConsumed
+            (
+                getDiscoveryGuardSnapshot().dailyDistractionConsumed
+                && !isEducationalContent(sourceTitle, source?.channelTitle || "")
+            )
             || (getOptions().japaneseMode && isJapaneseTitle(sourceTitle));
         const accept = async (incoming: FeedVideoItem[], fromChannel: boolean, limit = RELATED_ITEMS_LIMIT): Promise<void> => {
             const filtered = incoming.filter(item =>
@@ -119,12 +124,23 @@ export function createRelatedController(dependencies: RelatedControllerDependenc
     };
 
     const handlePlaybackLifecycleEvent = (payload: PlaybackLifecycleEventPayload): void => {
-        const videoId = String(payload?.videoId || "").trim();
-        if (!videoId) {
+        if (payload.event === "ended" || payload.event === "stopped") {
+            const endedVideoId = String(payload?.videoId || "").trim();
+            if (!state.currentPlaybackVideoId) return;
+            if (endedVideoId && endedVideoId !== state.currentPlaybackVideoId) return;
+            state.currentPlaybackVideoId = "";
+            ++state.relatedRefreshSequence;
+            state.relatedState.isLoading = false;
+            state.relatedState.items = [];
+            state.relatedState.status = RELATED_IDLE_TEXT;
+            renderRelated();
+            dependencies.updateActiveViewLoadingIndicators();
+            dependencies.renderModeTabs();
             return;
         }
 
-        if (videoId === state.currentPlaybackVideoId) {
+        const videoId = String(payload?.videoId || "").trim();
+        if (!videoId || videoId === state.currentPlaybackVideoId) {
             return;
         }
 

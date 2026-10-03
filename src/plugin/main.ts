@@ -17,6 +17,7 @@ import { createSponsorBlockController } from "./sponsorblock";
 const { console, event, sidebar, global, http, utils, core, overlay, preferences } = iina as any;
 
 const SHOW_SIDEBAR_DELAY_MS = 300;
+const PLAYBACK_SWITCH_TIMEOUT_MS = 22000;
 const YOUTUBE_SPLASH_FILENAME = "YouTube.png";
 const UI_SETTINGS_SCHEMA_VERSION = 1;
 
@@ -46,8 +47,20 @@ let windowReady = false;
 let windowClosed = false;
 let playTimer: ReturnType<typeof setTimeout> | null = null;
 let playlistCleanupTimer: ReturnType<typeof setTimeout> | null = null;
+let switchWatchdogTimer: ReturnType<typeof setTimeout> | null = null;
 let switchStartedAt = 0;
 let switchVideoId = "";
+
+function clearSwitchWatchdog(): void {
+    if (switchWatchdogTimer !== null) clearTimeout(switchWatchdogTimer);
+    switchWatchdogTimer = null;
+}
+
+function resetPlaybackSwitch(): void {
+    clearSwitchWatchdog();
+    switchStartedAt = 0;
+    switchVideoId = "";
+}
 installDataTransfer(() => windowClosed);
 let showTimer: ReturnType<typeof setTimeout> | null = null;
 let pendingShowSidebar = false;
@@ -140,7 +153,7 @@ event.on("iina.window-loaded", () => {
         if (switchStartedAt && path.includes(switchVideoId)) {
             const loadedVideoId = switchVideoId;
             sidebar.postMessage("playbackSwitchStatus", { stage: "loaded", videoId: loadedVideoId, elapsedMs: Date.now() - switchStartedAt });
-            switchStartedAt = 0;
+            resetPlaybackSwitch();
 
             // Wait until the file-loaded callback has fully unwound before
             // removing the old playlist entry. Doing this synchronously during
@@ -177,7 +190,7 @@ event.on("iina.window-loaded", () => {
         playTimer = null;
         if (playlistCleanupTimer !== null) clearTimeout(playlistCleanupTimer);
         playlistCleanupTimer = null;
-        switchStartedAt = 0;
+        resetPlaybackSwitch();
         if (showTimer !== null) clearTimeout(showTimer);
         sponsorBlockController?.stop();
         if (managedPlayerId !== null) global.postMessage("playerClosed", { playerId: managedPlayerId });
@@ -195,7 +208,20 @@ event.on("iina.window-loaded", () => {
         }
 
         if (!/^[A-Za-z0-9_-]{11}$/.test(data.videoId || "")) return;
-        if (switchStartedAt && switchVideoId === data.videoId && Date.now() - switchStartedAt < 30000) return;
+        if (switchStartedAt) {
+            const elapsed = Date.now() - switchStartedAt;
+            if (elapsed < PLAYBACK_SWITCH_TIMEOUT_MS) {
+                if (switchVideoId !== data.videoId) {
+                    sidebar.postMessage("playbackSwitchStatus", {
+                        stage: "failed",
+                        videoId: data.videoId,
+                        elapsedMs: elapsed
+                    });
+                }
+                return;
+            }
+            resetPlaybackSwitch();
+        }
         if (playlistCleanupTimer !== null) {
             clearTimeout(playlistCleanupTimer);
             playlistCleanupTimer = null;
@@ -210,10 +236,26 @@ event.on("iina.window-loaded", () => {
             try {
                 sponsorBlockController?.stop();
                 if (!handlePlayItem(data)) throw new Error("Player rejected selection");
-                sidebar.postMessage("playbackSwitchStatus", { stage: "loading", videoId: switchVideoId });
+                const requestedVideoId = switchVideoId;
+                sidebar.postMessage("playbackSwitchStatus", { stage: "loading", videoId: requestedVideoId });
+                clearSwitchWatchdog();
+                switchWatchdogTimer = setTimeout(() => {
+                    if (
+                        windowClosed
+                        || !switchStartedAt
+                        || switchVideoId !== requestedVideoId
+                    ) return;
+                    resetPlaybackSwitch();
+                    sidebar.postMessage("playbackSwitchStatus", {
+                        stage: "failed",
+                        videoId: requestedVideoId,
+                        elapsedMs: PLAYBACK_SWITCH_TIMEOUT_MS
+                    });
+                }, PLAYBACK_SWITCH_TIMEOUT_MS);
             } catch {
-                switchStartedAt = 0;
-                sidebar.postMessage("playbackSwitchStatus", { stage: "failed", videoId: switchVideoId });
+                const failedVideoId = switchVideoId;
+                resetPlaybackSwitch();
+                sidebar.postMessage("playbackSwitchStatus", { stage: "failed", videoId: failedVideoId });
             }
         }, 180);
 

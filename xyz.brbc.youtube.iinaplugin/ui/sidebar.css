@@ -236,6 +236,32 @@ body {
     gap: 10px;
 }
 
+.yt-playback-tools {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--line);
+}
+
+.yt-playback-tools[hidden] {
+    display: none;
+}
+
+.yt-playback-tools-label {
+    color: var(--text-subtle);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-right: 2px;
+}
+
+.yt-playback-tool {
+    padding: 6px 10px;
+    font-size: 12px;
+}
+
 .yt-tabs {
     display: flex;
     gap: 10px;
@@ -781,6 +807,97 @@ body {
 .yt-compact .yt-item-thumb-wrapper { max-width: 120px; }
 .yt-compact .yt-item { gap: 10px; padding-top: 6px; padding-bottom: 6px; }
 .yt-hide-stats .yt-item-stats { display: none; }
+
+/* Keep search usable even when the sidebar is narrow. */
+.yt-search-row {
+    flex-wrap: wrap;
+    align-items: stretch;
+}
+.yt-search-shell {
+    flex-basis: 100%;
+}
+.yt-header-actions {
+    width: 100%;
+    justify-content: flex-end;
+}
+.yt-tabs {
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+.yt-tabs::-webkit-scrollbar { display: none; }
+.yt-tab { flex-shrink: 0; }
+
+.yt-subscription-channels {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+    gap: 10px;
+    margin: 10px 0 14px;
+}
+.yt-subscription-channels[hidden] { display: none; }
+.yt-subscription-channel {
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    padding: 4px 2px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}
+.yt-subscription-channel:hover .yt-subscription-channel-avatar,
+.yt-subscription-channel:focus-visible .yt-subscription-channel-avatar {
+    outline: 2px solid rgba(255, 255, 255, 0.65);
+    outline-offset: 2px;
+}
+.yt-subscription-channel-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 999px;
+    object-fit: cover;
+    background: #2b2b2b;
+}
+.yt-subscription-channel-fallback {
+    display: grid;
+    place-items: center;
+    font-weight: 600;
+}
+.yt-subscription-channel-label {
+    width: 100%;
+    font-size: 11px;
+    line-height: 1.25;
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.yt-channel-search {
+    width: 100%;
+    margin: 10px 0 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #202020;
+    color: var(--text-main);
+    padding: 9px 10px;
+    font: inherit;
+}
+.yt-channel-search:focus {
+    outline: none;
+    border-color: rgba(0, 164, 220, 0.8);
+}
+.yt-channel-more {
+    width: 100%;
+    margin: 12px 0 4px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #282828;
+    color: var(--text-main);
+    padding: 9px 12px;
+    cursor: pointer;
+}
+.yt-channel-more:hover { background: #333333; }
+.yt-channel-more[hidden] { display: none; }
 
 /* Attribution stays in the sidebar; both metadata fields remain readable. */
 .yt-item button.yt-item-channel, button.yt-item-title-channel {

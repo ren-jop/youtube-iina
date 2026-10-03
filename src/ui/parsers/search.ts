@@ -89,8 +89,14 @@ function collectSearchRenderers(
         const objectNode = asObject(current);
         if (!objectNode) continue;
 
-        const channelRenderer = asObject(objectNode.channelRenderer);
-        if (channelRenderer) {
+        for (const key of [
+            "channelRenderer",
+            "gridChannelRenderer",
+            "compactChannelRenderer",
+            "channelListItemRenderer"
+        ]) {
+            const channelRenderer = asObject(objectNode[key]);
+            if (!channelRenderer) continue;
             const channel = parseChannelRenderer(channelRenderer);
             if (channel) channels.push(channel);
         }

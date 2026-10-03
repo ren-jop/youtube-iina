@@ -1,4 +1,5 @@
 import { parseSearchResponse } from "../parsers/search";
+import { isEducationalContent } from "../controller/feedTopics";
 import { isJapaneseTitle } from "./japanese";
 import { getOptions } from "../storage/libraryData";
 import { getDiscoveryGuardSnapshot, isJapaneseDiscoveryActive } from "../storage/discoveryGuard";
@@ -39,6 +40,7 @@ import type {
     FeedParseDiagnostics,
     FeedVideoItem,
     JsonObject,
+    SearchChannelResult,
     TvInnertubeConfig
 } from "../types";
 import { asObject, asString } from "../utils/json";
@@ -350,8 +352,12 @@ export async function fetchLoggedInHomeFeed(
     // A deliberate Home refresh walks deeper into the recommendation
     // continuation so pressing Home can actually surface a different set
     // instead of simply repainting the same first page.
-    const japaneseMode = isJapaneseDiscoveryActive();
-    const displayLimit = japaneseMode
+    const options = getOptions();
+    const guard = getDiscoveryGuardSnapshot();
+    const strictJapanese = options.japaneseMode;
+    const studyGuard = guard.dailyDistractionConsumed && !strictJapanese;
+    const constrainedDiscovery = strictJapanese || studyGuard;
+    const displayLimit = constrainedDiscovery
         ? JAPANESE_HOME_ITEMS_LIMIT
         : HOME_ITEMS_LIMIT;
     const target = forceRefresh
@@ -363,18 +369,22 @@ export async function fetchLoggedInHomeFeed(
             continuation ? { continuation } : { browseId: "FEwhat_to_watch" },
             FEED_TIMEOUT_MS,
             dependencies,
-            japaneseMode
+            strictJapanese
         ),
         target,
-        japaneseMode
+        forceRefresh || constrainedDiscovery
             ? Math.max(LOGGED_IN_BROWSE_MAX_PAGES, 10)
             : LOGGED_IN_BROWSE_MAX_PAGES,
-        japaneseMode
+        strictJapanese
             ? (item) => isJapaneseTitle(item.title)
-            : undefined
+            : studyGuard
+                ? (item) =>
+                    isJapaneseTitle(item.title)
+                    || isEducationalContent(item.title, item.channelTitle)
+                : undefined
     );
 
-    if (!japaneseMode) {
+    if (!constrainedDiscovery) {
         return {
             ...result,
             items: result.items.slice(0, target)
@@ -386,7 +396,10 @@ export async function fetchLoggedInHomeFeed(
     if (items.length < minimumUsefulHome) {
         const fallback = await fetchJapaneseHomeFallback(minimumUsefulHome - items.length);
         items = dedupeFeedItems([...items, ...fallback])
-            .filter((item) => isJapaneseTitle(item.title))
+            .filter((item) =>
+                isJapaneseTitle(item.title)
+                || (studyGuard && isEducationalContent(item.title, item.channelTitle))
+            )
             .slice(0, target);
     }
 
@@ -444,6 +457,38 @@ export async function fetchHomeTopicRecommendations(
     }
 
     return dedupeFeedItems(collected).slice(0, limit);
+}
+
+export async function fetchLoggedInSubscriptionChannels(
+    dependencies: FetchLoggedInBrowseFeedDependencies
+): Promise<SearchChannelResult[]> {
+    const channels = new Map<string, SearchChannelResult>();
+    const seenContinuations = new Set<string>();
+    let continuation = "";
+
+    for (let page = 0; page < 20 && channels.size < 1000; page += 1) {
+        const result = await sendTvInnertubeRequest(
+            "browse",
+            continuation ? { continuation } : { browseId: "FEchannels" },
+            FEED_TIMEOUT_MS,
+            dependencies,
+            false
+        );
+        if (!result.payload) break;
+
+        for (const channel of parseSearchResponse(result.payload).channels) {
+            if (channel.channelId && !channels.has(channel.channelId)) {
+                channels.set(channel.channelId, channel);
+            }
+        }
+
+        const next = extractFirstContinuationToken(result.payload);
+        if (!next || seenContinuations.has(next)) break;
+        seenContinuations.add(next);
+        continuation = next;
+    }
+
+    return [...channels.values()].sort((a, b) => a.title.localeCompare(b.title));
 }
 
 export async function fetchLoggedInSubscriptionsFeed(dependencies: FetchLoggedInBrowseFeedDependencies): Promise<FeedFetchResult> {
@@ -549,8 +594,10 @@ export async function fetchRelatedFeed(videoId: string, title = ""): Promise<Fee
     // opened. JP discovery therefore keeps Japanese follow-ups for Japanese
     // videos, but an explicitly searched English tutorial can keep useful
     // English follow-ups.
-    const dailyJapanese = getDiscoveryGuardSnapshot().dailyDistractionConsumed;
-    const japaneseOnly = dailyJapanese || (getOptions().japaneseMode && isJapaneseTitle(title));
+    const dailyStudyGuard = getDiscoveryGuardSnapshot().dailyDistractionConsumed;
+    const japaneseOnly =
+        (dailyStudyGuard && !isEducationalContent(title))
+        || (getOptions().japaneseMode && isJapaneseTitle(title));
     const key = `${videoId}:${getOptions().relatedMode}:${japaneseOnly}:${title}`;
     const cached = relatedCache.get(key);
     if (cached && Date.now() - cached.at < 180000) return cached.result;

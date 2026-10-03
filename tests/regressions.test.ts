@@ -17,6 +17,7 @@ import {
 import {
     deriveHomeTopics,
     deriveJapaneseInterestQueries,
+    derivePersonalizedInterestQueries,
     filterHomeItemsByTopic,
     rankPersonalizedHomeItems
 } from '../src/ui/controller/feedTopics';
@@ -105,6 +106,16 @@ describe('personalized Home topics', () => {
         ).map(item => item.videoId)).toEqual([
             'chemistry01',
             'chemistry02'
+        ]);
+    });
+
+    test('general For You has useful cold-start interests without login or history', () => {
+        const queries = derivePersonalizedInterestQueries([], 4, false);
+        expect(queries).toEqual([
+            'Engineering',
+            'Programming',
+            'Science',
+            'Chemistry'
         ]);
     });
 

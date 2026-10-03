@@ -1,3 +1,15 @@
+## 1.2.24 — Real history-driven For You + restored Subscriptions
+
+- **For You is now a real recommendation feed in both signed-in and anonymous modes.** It no longer falls back to an empty saved-channel feed when YouTube authentication is unavailable.
+- Candidate videos are combined from the signed-in YouTube Home feed when available, recommendations related to several of your most recently watched videos, searches derived from recent/repeated watch interests, and a small saved-channel exploration pool.
+- Local history is newest-first and now weights the current/recent viewing session much more strongly. Repeated recent topics and channels compound, while older history still contributes more gently.
+- Watched videos teach the recommender about their topic/channel but are heavily demoted so For You recommends the next thing instead of immediately repeating the same video.
+- Personal cold-start interests keep For You populated before enough local history exists, with engineering/programming/science/study-style exploration rather than subscriptions-only content.
+- Restored a separate **Subscriptions** subsection for newest-first uploads. Subscriptions stays visible even while sign-in state is restoring.
+- Restored persistent **For You category chips**; categories no longer disappear while Home is loading or empty, and can fetch their own recommendations.
+- Pressing Home refreshes and rotates the candidate pool instead of merely repainting the same list.
+- Preserves Study / JP, Distract · 1/day, unrestricted Subscriptions, deliberate channel browsing, Related, comments, and live chat behavior.
+
 ## 1.2.23 — Playback quality and smooth high-FPS selection
 
 - Fixed the capped 1080p/720p yt-dlp selector so 60 fps H.264/VP9 streams are preferred before 30 fps fallbacks.

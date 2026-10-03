@@ -3,6 +3,10 @@ export const views = document.querySelectorAll<HTMLElement>(".yt-view");
 export const feedTab = document.querySelector<HTMLButtonElement>('.yt-tab[data-view="feed"]')!;
 export const subscriptionsTab = document.querySelector<HTMLButtonElement>('.yt-tab[data-view="subscriptions"]')!;
 export const favoritesTab = document.querySelector<HTMLButtonElement>('.yt-tab[data-view="favorites"]')!;
+export const relatedTab = document.querySelector<HTMLButtonElement>('.yt-tab[data-view="related"]')!;
+export const commentsTab = document.querySelector<HTMLButtonElement>('.yt-tab[data-view="comments"]')!;
+export const chatTab = document.querySelector<HTMLButtonElement>('.yt-tab[data-view="chat"]')!;
+export const playbackTools = document.querySelector<HTMLElement>("[data-playback-tools]")!;
 export const feedFavoritesList = document.querySelector<HTMLUListElement>("[data-feed-favorites]")!;
 export const feedEmptyState = document.querySelector<HTMLElement>("[data-feed-empty]")!;
 export const feedStatus = document.querySelector<HTMLElement>("[data-feed-status]")!;
@@ -19,7 +23,6 @@ export const subscriptionsEmptyState = document.querySelector<HTMLElement>("[dat
 export const subscriptionsStatus = document.querySelector<HTMLElement>("[data-subscriptions-status]")!;
 export const subscriptionsLoadingIndicator = document.querySelector<HTMLElement>("[data-subscriptions-loading]")!;
 
-export const relatedTab = document.querySelector<HTMLButtonElement>('.yt-tab[data-view="related"]')!;
 export const relatedList = document.querySelector<HTMLUListElement>("[data-related-list]")!;
 export const relatedEmptyState = document.querySelector<HTMLElement>("[data-related-empty]")!;
 export const relatedStatus = document.querySelector<HTMLElement>("[data-related-status]")!;

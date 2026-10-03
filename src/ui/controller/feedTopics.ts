@@ -129,6 +129,34 @@ const HOME_TOPICS: HomeTopic[] = [
     }
 ];
 
+const EDUCATIONAL_TOPIC_IDS = new Set([
+    "philosophy", "chemistry", "science", "math", "history", "psychology",
+    "programming", "engineering", "study", "language", "productivity"
+]);
+
+// Personal seed interests provide a useful cold-start before local watch history
+// is large enough to steer Home. History still dominates as it accumulates.
+const PERSONAL_HOME_TOPIC_PRIORS = new Map<string, number>([
+    ["engineering", 2.0],
+    ["programming", 1.8],
+    ["science", 1.25],
+    ["chemistry", 1.2],
+    ["philosophy", 1.1],
+    ["football", 1.0],
+    ["math", 0.8],
+    ["study", 0.7]
+]);
+
+export function isEducationalContent(
+    title: string,
+    channelTitle = ""
+): boolean {
+    return HOME_TOPICS.some((topic) =>
+        EDUCATIONAL_TOPIC_IDS.has(topic.id)
+        && homeTopicMatches(topic, title, channelTitle)
+    );
+}
+
 function normalizedText(
     title: string,
     channelTitle = ""
@@ -180,7 +208,9 @@ function topicAffinityFromHistory(
     const scores = new Map<string, number>();
 
     history.slice(0, 160).forEach((item, index) => {
-        const recency = 1 / (1 + index / 18);
+        const recency =
+            1 / (1 + index / 8)
+            * (index < 12 ? 1.6 : 1);
         for (const topic of HOME_TOPICS) {
             if (homeTopicMatches(
                 topic,
@@ -204,17 +234,20 @@ export interface HomeRankingOptions {
     demoteWatched?: boolean;
 }
 
-export function deriveJapaneseInterestQueries(
+export function derivePersonalizedInterestQueries(
     history: HistoryItem[],
-    maxQueries = 4
+    maxQueries = 3,
+    japaneseMode = false
 ): string[] {
-    if (!history.length || maxQueries <= 0) return [];
+    if (maxQueries <= 0) return [];
 
     const topicAffinity = topicAffinityFromHistory(history);
     const topicQueries = HOME_TOPICS
         .map((topic) => ({
-            query: topic.labelJa,
-            score: topicAffinity.get(topic.id) || 0
+            query: japaneseMode ? topic.labelJa : topic.label,
+            score:
+                (topicAffinity.get(topic.id) || 0) * 1.5
+                + (PERSONAL_HOME_TOPIC_PRIORS.get(topic.id) || 0)
         }))
         .filter((entry) => entry.score > 0)
         .sort((a, b) => b.score - a.score)
@@ -222,7 +255,9 @@ export function deriveJapaneseInterestQueries(
 
     const tokenScores = new Map<string, number>();
     history.slice(0, 100).forEach((item, index) => {
-        const recency = 1 / (1 + index / 14);
+        const recency =
+            1 / (1 + index / 7)
+            * (index < 10 ? 1.7 : 1);
         for (const token of interestTokens(item.title)) {
             tokenScores.set(
                 token,
@@ -234,18 +269,29 @@ export function deriveJapaneseInterestQueries(
     const tokenQueries = [...tokenScores.entries()]
         .sort((a, b) => b[1] - a[1])
         .slice(0, Math.max(2, maxQueries))
-        .map(([token]) => `${token} 日本語`);
+        .map(([token]) => japaneseMode ? `${token} 日本語` : token);
 
     const topicBudget = Math.min(
         topicQueries.length,
-        Math.max(1, Math.ceil(maxQueries / 2))
+        Math.max(1, Math.ceil(maxQueries * 0.67))
     );
     const tokenBudget = Math.max(0, maxQueries - topicBudget);
 
     return [...new Set([
         ...topicQueries.slice(0, topicBudget),
-        ...tokenQueries.slice(0, tokenBudget)
+        ...tokenQueries.slice(0, tokenBudget),
+        // If history is sparse there may be no useful free-text tokens yet.
+        // Fill the remaining budget with the next strongest seeded topics so
+        // cold-start For You still has enough independent discovery sources.
+        ...topicQueries.slice(topicBudget)
     ])].slice(0, Math.max(0, maxQueries));
+}
+
+export function deriveJapaneseInterestQueries(
+    history: HistoryItem[],
+    maxQueries = 4
+): string[] {
+    return derivePersonalizedInterestQueries(history, maxQueries, true);
 }
 
 export function rankPersonalizedHomeItems(
@@ -254,7 +300,7 @@ export function rankPersonalizedHomeItems(
     preferredChannelTitles: string[] = [],
     options: HomeRankingOptions = {}
 ): FeedVideoItem[] {
-    if (items.length < 2 || history.length === 0) {
+    if (items.length < 2) {
         return items;
     }
 
@@ -285,7 +331,9 @@ export function rankPersonalizedHomeItems(
         const channel = item.channelTitle
             .trim()
             .toLocaleLowerCase();
-        const recency = 1 / (1 + index / 20);
+        const recency =
+            1 / (1 + index / 8)
+            * (index < 12 ? 1.8 : 1);
 
         if (channel) {
             channelAffinity.set(
@@ -304,27 +352,27 @@ export function rankPersonalizedHomeItems(
         }
     });
 
-    return items
+    const ranked = items
         .map((item, index) => {
             const channel = item.channelTitle
                 .trim()
                 .toLocaleLowerCase();
             let score =
                 (channelAffinity.get(channel) || 0)
-                * 2.4
+                * 1.9
                 * strength;
 
             if (
                 channel
                 && preferredChannels.has(channel)
             ) {
-                score += 1.8;
+                score += 0.6;
             }
 
             for (const token of interestTokens(item.title)) {
                 score +=
                     (tokenAffinity.get(token) || 0)
-                    * 0.72
+                    * 0.62
                     * strength;
             }
 
@@ -336,29 +384,60 @@ export function rankPersonalizedHomeItems(
                 )) {
                     score +=
                         (topicAffinity.get(topic.id) || 0)
-                        * 0.85
+                        * 0.78
                         * strength;
+                    score +=
+                        (PERSONAL_HOME_TOPIC_PRIORS.get(topic.id) || 0)
+                        * 0.62;
                 }
             }
 
             if (watchedVideoIds.has(item.videoId)) {
-                score -= 8 * strength;
+                // Watching something should teach the recommender about its
+                // topic/channel, not immediately recommend the same video again.
+                score -= 20 * strength;
             }
 
-            // Preserve YouTube's own ordering as an exploration signal, but
-            // allow Japanese mode to react clearly to local viewing history.
+            // Preserve source ordering as an exploration signal, but let
+            // repeated and very recent watch-history interests dominate enough
+            // for For You to visibly adapt within the current viewing session.
             score +=
                 (items.length - index)
                 / Math.max(1, items.length)
-                * 0.35;
+                * 0.7;
 
             return { item, score, index };
         })
         .sort((a, b) =>
             b.score - a.score
             || a.index - b.index
-        )
-        .map((entry) => entry.item);
+        );
+
+    // Keep the top of Home varied like YouTube instead of letting one heavily
+    // watched/subscribed channel occupy most of the first screen.
+    const headTarget = Math.min(24, ranked.length);
+    const head: FeedVideoItem[] = [];
+    const tail: FeedVideoItem[] = [];
+    const channelCounts = new Map<string, number>();
+
+    for (const entry of ranked) {
+        if (head.length >= headTarget) {
+            tail.push(entry.item);
+            continue;
+        }
+
+        const channel = entry.item.channelTitle.trim().toLocaleLowerCase();
+        const count = channel ? (channelCounts.get(channel) || 0) : 0;
+        if (channel && count >= 2) {
+            tail.push(entry.item);
+            continue;
+        }
+
+        head.push(entry.item);
+        if (channel) channelCounts.set(channel, count + 1);
+    }
+
+    return [...head, ...tail];
 }
 
 export function deriveHomeTopics(

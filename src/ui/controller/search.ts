@@ -1,4 +1,6 @@
-import { isJapaneseDiscoveryActive } from "../storage/discoveryGuard";
+import { getDiscoveryGuardSnapshot } from "../storage/discoveryGuard";
+import { getOptions } from "../storage/libraryData";
+import { isEducationalContent } from "./feedTopics";
 import {
     buildJapaneseSearchQuery,
     isJapaneseTitle,
@@ -340,8 +342,11 @@ export function createSearchController(dependencies: SearchControllerDependencie
         renderSearchResults();
 
         try {
-            const japaneseMode = isJapaneseDiscoveryActive();
-            const requestQuery = japaneseMode
+            const options = getOptions();
+            const guard = getDiscoveryGuardSnapshot();
+            const strictJapanese = options.japaneseMode;
+            const studyGuard = guard.dailyDistractionConsumed && !strictJapanese;
+            const requestQuery = strictJapanese
                 ? buildJapaneseSearchQuery(normalizedQuery)
                 : normalizedQuery;
             const config = await getInnertubeConfig();
@@ -368,14 +373,19 @@ export function createSearchController(dependencies: SearchControllerDependencie
 
             const responseJson: unknown = JSON.parse(response.text);
             const parsed = parseSearchResponseFromParser(responseJson);
-            const candidateChannels = japaneseMode
+            const candidateChannels = strictJapanese
                 ? parsed.channels.filter((channel) =>
                     isLikelyJapaneseDiscoveryText(channel.title, channel.title)
                 )
                 : parsed.channels;
-            const candidateVideos = japaneseMode
+            const candidateVideos = strictJapanese
                 ? parsed.videos.filter((video) => isJapaneseTitle(video.title))
-                : parsed.videos;
+                : studyGuard
+                    ? parsed.videos.filter((video) =>
+                        isJapaneseTitle(video.title)
+                        || isEducationalContent(video.title, video.channelTitle)
+                    )
+                    : parsed.videos;
             const limitedChannels = candidateChannels.slice(0, SEARCH_CHANNELS_LIMIT);
             const channelsWithSubscriptionState = limitedChannels;
             const limitedVideos = candidateVideos.slice(0, SEARCH_VIDEOS_LIMIT);
@@ -388,11 +398,15 @@ export function createSearchController(dependencies: SearchControllerDependencie
             state.searchState.channels = channelsWithSubscriptionState;
             state.searchState.videos = finalizedVideos;
             setSearchStatus(
-                japaneseMode
+                strictJapanese
                 && finalizedVideos.length === 0
                 && limitedChannels.length === 0
                     ? "No Japanese results found. Try a broader search."
-                    : ""
+                    : studyGuard
+                    && finalizedVideos.length === 0
+                    && limitedChannels.length === 0
+                        ? "No Japanese or educational results found. You can still open a channel from search."
+                        : ""
             );
             // Subscription state can take several requests. Show videos immediately.
             if (state.appMode === "logged_in") void resolveSearchChannelsSubscriptionState(limitedChannels).then(channels => {
@@ -434,12 +448,17 @@ export function createSearchController(dependencies: SearchControllerDependencie
         const content = document.querySelector<HTMLElement>(".yt-content");
         if (content) content.scrollTop = 0;
         document.querySelectorAll<HTMLInputElement>("[data-feed-filter],[data-subscriptions-filter]").forEach(input => { input.value = ""; });
+        // Home is the explicit "refresh everything" action. Refresh the
+        // recommendation surface and the signed-in subscription library together
+        // so channel icons, upload lists and Home never drift apart.
         if (state.appMode === "logged_in") {
-            await Promise.all([dependencies.refreshFeed(true), dependencies.refreshSubscriptions(true)]);
-            return;
+            await Promise.all([
+                dependencies.refreshFeed(true),
+                dependencies.refreshSubscriptions(true)
+            ]);
+        } else {
+            await dependencies.refreshFeed(true);
         }
-
-        await dependencies.refreshFeed(true);
     };
 
     return {

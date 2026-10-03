@@ -20,6 +20,9 @@ export interface ModeTabsElements {
     subscriptionsTab: HTMLButtonElement | null;
     favoritesTab: HTMLButtonElement | null;
     relatedTab: HTMLButtonElement | null;
+    commentsTab: HTMLButtonElement | null;
+    chatTab: HTMLButtonElement | null;
+    playbackTools: HTMLElement | null;
 }
 
 export interface ModeTabsDependencies {
@@ -79,12 +82,16 @@ export function renderModeTabs(dependencies: ModeTabsDependencies): void {
     const hasPlaybackVideo = currentPlaybackVideoId.trim().length > 0;
 
     if (elements.feedTab) {
-        elements.feedTab.textContent = isLoggedIn ? "Home" : "Feed";
+        elements.feedTab.textContent = "For You";
+        elements.feedTab.title = "Personalized recommendations from your watch history";
     }
 
     if (elements.subscriptionsTab) {
         elements.subscriptionsTab.textContent = "Subscriptions";
-        elements.subscriptionsTab.hidden = !isLoggedIn;
+        elements.subscriptionsTab.hidden = false;
+        elements.subscriptionsTab.title = isLoggedIn
+            ? "Newest videos from channels you subscribe to"
+            : "Sign in to load your subscriptions";
     }
 
     if (elements.favoritesTab) {
@@ -97,18 +104,28 @@ export function renderModeTabs(dependencies: ModeTabsDependencies): void {
         elements.relatedTab.hidden = !hasPlaybackVideo;
     }
 
-    const currentView = getActiveView();
-    if (currentView === "subscriptions" && !isLoggedIn) {
-        setActiveView("feed");
-        return;
+    if (elements.playbackTools) {
+        elements.playbackTools.hidden = !hasPlaybackVideo;
+    }
+    if (elements.commentsTab) {
+        elements.commentsTab.hidden = !hasPlaybackVideo;
+    }
+    if (elements.chatTab) {
+        elements.chatTab.hidden = !hasPlaybackVideo;
     }
 
+    const currentView = getActiveView();
     if (currentView === "favorites" && isLoggedIn) {
         setActiveView("feed");
         return;
     }
 
-    if (currentView === "related" && !hasPlaybackVideo) {
+    if (
+        (currentView === "related"
+            || currentView === "comments"
+            || currentView === "chat")
+        && !hasPlaybackVideo
+    ) {
         setActiveView("feed");
     }
 }

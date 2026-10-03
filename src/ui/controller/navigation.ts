@@ -46,13 +46,13 @@ export function createNavigationController(onViewChanged?: () => void): Navigati
 
     const setActiveView = (viewName: ViewName): void => {
         let normalizedViewName = viewName;
-        if (viewName === "subscriptions" && state.appMode !== "logged_in") {
-            normalizedViewName = "feed";
-        }
         if (viewName === "favorites" && state.appMode === "logged_in") {
             normalizedViewName = "feed";
         }
-        if (viewName === "related" && !state.currentPlaybackVideoId) {
+        if (
+            (viewName === "related" || viewName === "comments" || viewName === "chat")
+            && !state.currentPlaybackVideoId
+        ) {
             normalizedViewName = "feed";
         }
 

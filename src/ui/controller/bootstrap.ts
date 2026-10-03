@@ -60,6 +60,7 @@ export function initializeSidebar(): void {
         playFeedItem: feedController.playFeedItem,
         resolveFeedItemPresentation: feedController.resolveFeedItemPresentation,
         fetchLoggedInSubscriptionsFeed: feedController.fetchLoggedInSubscriptionsFeed,
+        fetchLoggedInSubscriptionChannels: feedController.fetchLoggedInSubscriptionChannels,
         buildFinalFilteredFeedItems: feedController.buildFinalFilteredFeedItems,
         getValidTvAccessToken: () => {
             if (!authController) {

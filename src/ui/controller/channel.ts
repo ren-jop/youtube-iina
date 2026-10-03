@@ -1,4 +1,6 @@
 import { loadChannelVideos, type ChannelIdentity } from "../innertube/channels";
+import { fetchChannelFeedFromInnertube } from "../innertube/feedBrowse";
+import { newestFirst } from "./subscriptionTools";
 import {
     executeChannelSubscriptionCommand,
     fetchChannelSubscriptionState,
@@ -34,8 +36,12 @@ export function initializeChannelView(
     const title = document.querySelector<HTMLElement>("[data-channel-title]");
     const emptyState = document.querySelector<HTMLElement>("[data-channel-empty]");
     const subscriptionButton = document.querySelector<HTMLButtonElement>("[data-channel-subscription]");
+    const channelFilter = document.querySelector<HTMLInputElement>("[data-channel-filter]");
+    const moreButton = document.querySelector<HTMLButtonElement>("[data-channel-more]");
 
     let sequence = 0;
+    let channelPageBudget = 3;
+    let channelExhausted = false;
     let returnView: ViewName = "feed";
     let currentChannelId = "";
     let subscriptionState: ChannelSubscriptionState | null = null;
@@ -48,8 +54,8 @@ export function initializeChannelView(
         if (!available) return;
 
         if (!subscriptionState || subscriptionState.isSubscribed === null) {
-            subscriptionButton.textContent = "Checking…";
-            subscriptionButton.disabled = true;
+            subscriptionButton.textContent = "Subscribe";
+            subscriptionButton.disabled = false;
             return;
         }
 
@@ -60,17 +66,36 @@ export function initializeChannelView(
     };
 
     const render = () => {
+        const query = channelFilter?.value.trim().toLocaleLowerCase() || "";
+        const visibleChannel = query
+            ? {
+                ...channel,
+                items: channel.items.filter((item) =>
+                    item.title.toLocaleLowerCase().includes(query)
+                    || item.channelTitle.toLocaleLowerCase().includes(query)
+                )
+            }
+            : channel;
         renderPlayableVideoList({
-            state: channel,
+            state: visibleChannel,
             list,
             status,
             emptyState,
-            defaultEmptyText: "No videos available from this channel.",
+            defaultEmptyText: query
+                ? "No loaded videos in this channel match your search."
+                : "No videos available from this channel.",
             onUpdateLoadingIndicators: () => {},
             onPlayItem: play,
             resolveItemPresentation: presentation
         });
         renderSubscription();
+        if (moreButton) {
+            moreButton.hidden =
+                !currentChannelId
+                || channel.isLoading
+                || channelExhausted;
+            moreButton.disabled = channel.isLoading;
+        }
     };
 
     const authDependencies = {
@@ -95,12 +120,12 @@ export function initializeChannelView(
     };
 
     subscriptionButton?.addEventListener("click", () => {
-        if (!currentChannelId || !subscriptionState || subscriptionState.isSubscribed === null) return;
-        const subscribed = subscriptionState.isSubscribed;
+        if (!currentChannelId) return;
+        const subscribed = subscriptionState?.isSubscribed === true;
         const subscribe = !subscribed;
         const command = subscribe
-            ? subscriptionState.subscribeCommand || fallbackCommand(currentChannelId, true)
-            : subscriptionState.unsubscribeCommand || fallbackCommand(currentChannelId, false);
+            ? subscriptionState?.subscribeCommand || fallbackCommand(currentChannelId, true)
+            : subscriptionState?.unsubscribeCommand || fallbackCommand(currentChannelId, false);
 
         subscriptionButton.disabled = true;
         subscriptionButton.textContent = subscribe ? "Subscribing…" : "Unsubscribing…";
@@ -122,6 +147,52 @@ export function initializeChannelView(
         });
     });
 
+    moreButton?.addEventListener("click", () => {
+        if (!currentChannelId || channel.isLoading || channelExhausted) return;
+
+        const request = sequence;
+        const channelId = currentChannelId;
+        const previousCount = channel.items.length;
+        channelPageBudget = Math.min(24, channelPageBudget + 3);
+        const requestedLimit = Math.min(600, channelPageBudget * 25);
+
+        channel.isLoading = true;
+        channel.status = "Loading older uploads…";
+        render();
+
+        void fetchChannelFeedFromInnertube(
+            channelId,
+            requestedLimit,
+            channelPageBudget
+        ).then((result) => {
+            if (request !== sequence || currentChannelId !== channelId) return;
+            if (result.items.length > 0) {
+                const channelTitle = title?.textContent || "Channel";
+                channel.items = newestFirst(result.items.map((item) => ({
+                    ...item,
+                    channelId,
+                    channelTitle:
+                        !item.channelTitle || item.channelTitle === "Unknown channel"
+                            ? channelTitle
+                            : item.channelTitle
+                })));
+            }
+            channelExhausted =
+                result.items.length <= previousCount
+                || channelPageBudget >= 24;
+            channel.status = channelExhausted
+                ? "All available uploads loaded."
+                : "";
+        }).catch((error) => {
+            if (request !== sequence) return;
+            channel.status = "Could not load older uploads: " + (error instanceof Error ? error.message : String(error));
+        }).finally(() => {
+            if (request !== sequence) return;
+            channel.isLoading = false;
+            render();
+        });
+    });
+
     document.querySelector("[data-channel-back]")?.addEventListener("click", () => navigation.setActiveView(returnView));
 
     document.addEventListener("youtube-open-channel", event => {
@@ -133,7 +204,10 @@ export function initializeChannelView(
         if (title) title.textContent = source.title || "Channel";
 
         currentChannelId = "";
-        subscriptionState = null;
+        channelPageBudget = 3;
+        channelExhausted = false;
+        subscriptionState = source.isSubscribed === true ? { isSubscribed: true } : null;
+        if (channelFilter) channelFilter.value = "";
         channel.items = [];
         channel.isLoading = true;
         channel.status = "Loading channel…";
@@ -147,9 +221,14 @@ export function initializeChannelView(
             if (request !== sequence) return;
             currentChannelId = result.channelId;
             channel.items = result.items;
+            channelExhausted = result.items.length === 0;
             channel.status = "";
             if (title) title.textContent = result.title;
-            if (state.subscriptionsState.items.some((item) => item.channelId === result.channelId)) {
+            if (
+                source.isSubscribed === true
+                || state.subscriptionChannels.some((entry) => entry.channelId === result.channelId)
+                || state.subscriptionsState.items.some((item) => item.channelId === result.channelId)
+            ) {
                 subscriptionState = { isSubscribed: true };
             }
             render();
@@ -165,5 +244,6 @@ export function initializeChannelView(
         });
     });
 
+    channelFilter?.addEventListener("input", render);
     document.addEventListener("youtube-options-changed", render);
 }

@@ -1,9 +1,8 @@
 import { createRefreshQueue } from "../utils/refreshQueue";
-import { newestFirst, filterSubscriptions } from "./subscriptionTools";
+import { newestFirst } from "./subscriptionTools";
 import { requestPlayback } from "./playerUi";
 import { MESSAGE_NAMES } from "../../shared/messages";
 import {
-    FEED_EMPTY_NO_FAVORITES_TEXT,
     FEED_FETCH_CONCURRENCY,
     FEED_ITEMS_LIMIT,
     HOME_EMPTY_TEXT,
@@ -16,6 +15,8 @@ import {
     fetchChannelFeedFromInnertube,
     fetchHomeTopicRecommendations,
     fetchLoggedInHomeFeed,
+    fetchRelatedFeed,
+    fetchLoggedInSubscriptionChannels as fetchLoggedInSubscriptionChannelsFromInnertube,
     fetchLoggedInSubscriptionsFeed as fetchLoggedInSubscriptionsFeedFromInnertube
 } from "../innertube/feedBrowse";
 import {
@@ -30,6 +31,7 @@ import type {
     ChannelFeedResult,
     FeedFetchResult,
     FeedVideoItem,
+    SearchChannelResult,
     SearchVideoResult,
     VideoMetadata
 } from "../types";
@@ -47,10 +49,11 @@ import {
 } from "../storage/discoveryGuard";
 import {
     deriveHomeTopics,
-    deriveJapaneseInterestQueries,
+    derivePersonalizedInterestQueries,
     fillHomeTopics,
     filterHomeItemsByTopic,
     homeTopicLabel,
+    isEducationalContent,
     rankPersonalizedHomeItems,
     type HomeTopic
 } from "./feedTopics";
@@ -75,10 +78,12 @@ export interface FeedController {
     getVideoMetadataFromCache: (videoId: string) => VideoMetadata | null;
     buildFinalFilteredFeedItems: (items: FeedVideoItem[], limit: number) => Promise<FeedVideoItem[]>;
     fetchLoggedInSubscriptionsFeed: () => Promise<FeedFetchResult>;
+    fetchLoggedInSubscriptionChannels: () => Promise<SearchChannelResult[]>;
 }
 
 export function createFeedController(dependencies: FeedControllerDependencies): FeedController {
     let forceFeedRefreshRequested = false;
+    let homeRefreshRotation = 0;
     let activeHomeTopicId = "all";
     let availableHomeTopics: HomeTopic[] = [];
     const topicSupplementalItems = new Map<string, FeedVideoItem[]>();
@@ -92,11 +97,14 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
     };
 
     const filterPassiveDiscoveryLanguage = (items: FeedVideoItem[]): FeedVideoItem[] => {
-        if (!isJapaneseDiscoveryActive()) return items;
-        const dailyVideoId = getDiscoveryGuardSnapshot().dailyDistractionVideoId;
+        const options = getOptions();
+        const guard = getDiscoveryGuardSnapshot();
+        if (!options.japaneseMode && !guard.dailyDistractionConsumed) return items;
+
         return items.filter((item) =>
             isJapaneseTitle(item.title)
-            || (dailyVideoId && item.videoId === dailyVideoId)
+            || (!options.japaneseMode && isEducationalContent(item.title, item.channelTitle))
+            || (guard.dailyDistractionVideoId && item.videoId === guard.dailyDistractionVideoId)
         );
     };
 
@@ -186,15 +194,14 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
     const renderHomeTopics = (): void => {
         if (!feedTopicsElement) return;
 
-        if (
-            state.appMode !== "logged_in"
-            || state.feedState.items.length === 0
-        ) {
-            feedTopicsElement.hidden = true;
-            feedTopicsElement.replaceChildren();
-            activeHomeTopicId = "all";
-            return;
-        }
+        // Categories are part of For You itself, not a side effect of a
+        // successful Home request. Keep the chips available while Home is
+        // loading or temporarily empty so a category can bootstrap its own
+        // recommendations.
+        availableHomeTopics = fillHomeTopics(
+            availableHomeTopics,
+            7
+        );
 
         const validIds = new Set(
             availableHomeTopics.map((topic) => topic.id)
@@ -281,21 +288,20 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
     ): FeedVideoItem[] => {
         const history = loadLibraryData().history;
         const japaneseMode = isJapaneseDiscoveryActive();
-        const preferredChannels = [
-            ...state.subscriptionsState.items.map(
-                (item) => item.channelTitle
-            ),
-            ...state.favorites.map(
-                (channel) => channel.title
-            )
-        ];
+        // Subscribing to a channel should not make For You collapse into the
+        // subscriptions feed. Repeatedly watched channels already earn affinity
+        // from local history; favorites are only a small explicit preference.
+        const preferredChannels = state.favorites.map(
+            (channel) => channel.title
+        );
         const ranked = rankPersonalizedHomeItems(
             items,
             history,
             preferredChannels,
-            japaneseMode
-                ? { strength: 1.8, demoteWatched: true }
-                : undefined
+            {
+                strength: japaneseMode ? 1.8 : 1.15,
+                demoteWatched: true
+            }
         );
         availableHomeTopics = fillHomeTopics(
             deriveHomeTopics(
@@ -375,7 +381,9 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
             "[data-feed-filter-row]"
         );
         if (filter) {
-            filter.hidden = state.appMode !== "anonymous";
+            // For You is recommendation-driven in both signed-in and anonymous
+            // modes. Subscription searching belongs in the Subscriptions view.
+            filter.hidden = true;
         }
 
         const discoveryBlocked = renderDiscoveryGuard();
@@ -385,21 +393,13 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
             renderHomeTopics();
         }
 
-        const baseVisibleItems = state.appMode === "anonymous"
-            ? filterSubscriptions(
-                state.feedState.items,
-                document.querySelector<HTMLInputElement>(
-                    "[data-feed-filter]"
-                )?.value || ""
-            )
-            : filterHomeItemsByTopic(
-                state.feedState.items,
-                activeHomeTopicId
-            );
-        const supplementalItems = state.appMode === "logged_in"
-            && activeHomeTopicId !== "all"
-                ? topicSupplementalItems.get(activeHomeTopicId) || []
-                : [];
+        const baseVisibleItems = filterHomeItemsByTopic(
+            state.feedState.items,
+            activeHomeTopicId
+        );
+        const supplementalItems = activeHomeTopicId !== "all"
+            ? topicSupplementalItems.get(activeHomeTopicId) || []
+            : [];
         const visibleItems = discoveryBlocked
             ? []
             : filterPassiveDiscoveryLanguage(
@@ -410,8 +410,6 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
             );
 
         renderFeedView({
-            appMode: state.appMode,
-            favoritesCount: state.favorites.length,
             feedState: {
                 ...state.feedState,
                 items: visibleItems
@@ -421,21 +419,12 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
                 emptyState: feedEmptyState,
                 status: feedStatus
             },
-            feedEmptyNoFavoritesText:
-                FEED_EMPTY_NO_FAVORITES_TEXT,
             defaultEmptyText:
                 discoveryBlocked
                     ? "Passive browsing is paused. Use Search, Related, channels or Recent for something deliberate."
-                    : state.appMode === "logged_in"
-                && activeHomeTopicId !== "all"
-                    ? "No recommendations in this topic."
-                    : (
-                        document.querySelector<HTMLInputElement>(
-                            "[data-feed-filter]"
-                        )?.value.trim()
-                            ? "No loaded subscription videos match your search."
-                            : "No recent uploads found for your channels."
-                    ),
+                    : activeHomeTopicId !== "all"
+                        ? "No recommendations in this topic."
+                        : HOME_EMPTY_TEXT,
             onUpdateLoadingIndicators:
                 dependencies.updateActiveViewLoadingIndicators,
             onPlayItem: playFeedItem,
@@ -461,6 +450,14 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
         requestPlayback(item);
     };
 
+    const fetchLoggedInSubscriptionChannels = async (): Promise<SearchChannelResult[]> => {
+        return fetchLoggedInSubscriptionChannelsFromInnertube({
+            isTvAuthAvailable: () => Boolean(state.tvAuthCache),
+            getValidTvAccessToken: dependencies.getValidTvAccessToken,
+            refreshTvAccessToken: dependencies.refreshTvAccessToken
+        });
+    };
+
     const fetchLoggedInSubscriptionsFeed = async (): Promise<FeedFetchResult> => {
         return fetchLoggedInSubscriptionsFeedFromInnertube({
             isTvAuthAvailable: () => Boolean(state.tvAuthCache),
@@ -472,185 +469,217 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
     const refreshFeedOnce = async (): Promise<void> => {
         const forceRefresh = forceFeedRefreshRequested;
         forceFeedRefreshRequested = false;
+        if (forceRefresh) {
+            homeRefreshRotation += 1;
+            activeHomeTopicId = "all";
+            availableHomeTopics = [];
+            topicSupplementRequest += 1;
+            topicSupplementalItems.clear();
+        }
+
         const refreshId = ++state.feedRefreshSequence;
-
-        if (state.appMode === "logged_in") {
-            state.feedState.isLoading = true;
-            state.feedState.warning = "";
-            state.feedState.status = "";
-            renderFeed();
-
-            try {
-                const previousVideoIds = new Set(state.feedState.items.map(item => item.videoId));
-                const homeResult = await fetchLoggedInHomeFeed({
-                    isTvAuthAvailable: () => Boolean(state.tvAuthCache),
-                    getValidTvAccessToken: dependencies.getValidTvAccessToken,
-                    refreshTvAccessToken: dependencies.refreshTvAccessToken
-                }, forceRefresh);
-                const japaneseMode = isJapaneseDiscoveryActive();
-                let candidates = forceRefresh && previousVideoIds.size > 0
-                    ? [
-                        ...homeResult.items.filter(item => !previousVideoIds.has(item.videoId)),
-                        ...homeResult.items.filter(item => previousVideoIds.has(item.videoId))
-                    ]
-                    : homeResult.items;
-
-                if (japaneseMode) {
-                    const history = loadLibraryData().history;
-                    const interestQueries = deriveJapaneseInterestQueries(
-                        history,
-                        forceRefresh ? 4 : 3
-                    );
-                    const interestBatches = await mapWithConcurrency(
-                        interestQueries,
-                        2,
-                        (query) => fetchHomeTopicRecommendations(
-                            query,
-                            true,
-                            10
-                        )
-                    );
-                    candidates = [...new Map(
-                        [
-                            ...candidates,
-                            ...interestBatches.flat()
-                        ].map((item) => [item.videoId, item] as const)
-                    ).values()];
-                }
-
-                const homeDisplayLimit = japaneseMode
-                    ? JAPANESE_HOME_ITEMS_LIMIT
-                    : HOME_ITEMS_LIMIT;
-                const candidateLimit = japaneseMode
-                    ? homeDisplayLimit + 40
-                    : homeDisplayLimit;
-                const items = await buildFinalFilteredFeedItems(
-                    filterPassiveDiscoveryLanguage(candidates),
-                    candidateLimit
-                );
-                if (refreshId !== state.feedRefreshSequence) {
-                    return;
-                }
-
-                if (items.length || !homeResult.failureReason) {
-                    state.feedState.items =
-                        updateHomePersonalization(items)
-                            .slice(0, homeDisplayLimit);
-                }
-                state.feedState.isLoading = false;
-                state.feedState.warning = "";
-                if (homeResult.failureReason) {
-                    state.feedState.status = toFeedStatusMessage("Could not load home recommendations", homeResult);
-                } else if (homeResult.items.length > 0 && items.length === 0) {
-                    state.feedState.status = "No playable home recommendations available.";
-                } else {
-                    state.feedState.status = items.length > 0 ? "" : HOME_EMPTY_TEXT;
-                }
-
-                renderFeed();
-            } catch (error) {
-                if (refreshId !== state.feedRefreshSequence) {
-                    return;
-                }
-
-                state.feedState.isLoading = false;
-                state.feedState.warning = "";
-                state.feedState.status = `Could not load home recommendations: ${error instanceof Error ? error.message : String(error)}`;
-                renderFeed();
-            }
-            return;
-        }
-
-        activeHomeTopicId = "all";
-        availableHomeTopics = [];
-        topicSupplementalItems.clear();
-        const favoriteChannelIds = [...new Set<string>(
-            state.favorites
-                .map((favorite) => favorite.channelId.trim())
-                .filter((channelId): channelId is string => channelId.length > 0)
-        )];
-
-        if (favoriteChannelIds.length === 0) {
-            state.feedState.isLoading = false;
-            state.feedState.items = [];
-            state.feedState.status = "";
-            state.feedState.warning = "";
-            renderFeed();
-            return;
-        }
-
         state.feedState.isLoading = true;
         state.feedState.warning = "";
         state.feedState.status = "";
         renderFeed();
 
-        let channelResults: ChannelFeedResult[] = [];
         try {
-            const completed: ChannelFeedResult[] = [];
-            const showProgressively = !state.feedState.items.length;
-            channelResults = await mapWithConcurrency(favoriteChannelIds, FEED_FETCH_CONCURRENCY, async channelId => {
-                const result = await loadChannelFeed(channelId);
-                if (refreshId !== state.feedRefreshSequence) return result;
-                completed.push(result);
-                // Show usable uploads without waiting for the slowest channel.
-                if (showProgressively && result.items.length) {
-                    const partial = await buildFinalFilteredFeedItems(
-                        filterPassiveDiscoveryLanguage(mergeFeedItems(completed)),
-                        FEED_ITEMS_LIMIT
-                    );
-                    if (refreshId === state.feedRefreshSequence) { state.feedState.items = partial; renderFeed(); }
+            const previousVideoIds = new Set(
+                state.feedState.items.map((item) => item.videoId)
+            );
+            const japaneseMode = isJapaneseDiscoveryActive();
+            const history = loadLibraryData().history;
+
+            // The first few history rows are the current viewing session in
+            // practice because history is normalized newest-first. Use several
+            // distinct recent videos so one accidental click cannot define the
+            // whole feed, while repeated recent topics/channels still compound.
+            const recentHistorySeeds: typeof history = [];
+            const perChannelSeedCount = new Map<string, number>();
+            for (const item of history.slice(0, 24)) {
+                if (!item.title.trim()) continue;
+                const channelKey = item.channelTitle.trim().toLocaleLowerCase();
+                const count = channelKey
+                    ? (perChannelSeedCount.get(channelKey) || 0)
+                    : 0;
+                if (channelKey && count >= 2) continue;
+                recentHistorySeeds.push(item);
+                if (channelKey) {
+                    perChannelSeedCount.set(channelKey, count + 1);
                 }
-                return result;
-            });
-        } catch {
-            if (refreshId !== state.feedRefreshSequence) {
-                return;
+                if (recentHistorySeeds.length >= (forceRefresh ? 6 : 4)) break;
             }
 
+            const interestQueries = derivePersonalizedInterestQueries(
+                history,
+                forceRefresh
+                    ? (japaneseMode ? 5 : 5)
+                    : (japaneseMode ? 4 : 4),
+                japaneseMode
+            );
+
+            const favoriteChannelIds = [...new Set(
+                state.favorites
+                    .map((favorite) => favorite.channelId.trim())
+                    .filter(Boolean)
+            )].slice(0, history.length < 8 ? 8 : 4);
+
+            const emptyHomeResult: FeedFetchResult = {
+                items: [],
+                diagnostics: {
+                    totalVisitedNodes: 0,
+                    acceptedItems: 0,
+                    rejectedByReason: {}
+                }
+            };
+
+            const homePromise = state.appMode === "logged_in"
+                ? fetchLoggedInHomeFeed({
+                    isTvAuthAvailable: () => Boolean(state.tvAuthCache),
+                    getValidTvAccessToken: dependencies.getValidTvAccessToken,
+                    refreshTvAccessToken: dependencies.refreshTvAccessToken
+                }, forceRefresh).catch(() => ({
+                    ...emptyHomeResult,
+                    failureReason: "unknown_error" as const
+                }))
+                : Promise.resolve(emptyHomeResult);
+
+            const relatedPromise = mapWithConcurrency(
+                recentHistorySeeds,
+                2,
+                async (seed) => {
+                    try {
+                        const result = await fetchRelatedFeed(
+                            seed.videoId,
+                            seed.title
+                        );
+                        return result.items.slice(0, 10);
+                    } catch {
+                        return [];
+                    }
+                }
+            );
+
+            const interestPromise = mapWithConcurrency(
+                interestQueries,
+                2,
+                (query) => fetchHomeTopicRecommendations(
+                    query,
+                    japaneseMode,
+                    12
+                )
+            );
+
+            const favoritesPromise = favoriteChannelIds.length
+                ? mapWithConcurrency(
+                    favoriteChannelIds,
+                    FEED_FETCH_CONCURRENCY,
+                    loadChannelFeed
+                ).then(mergeFeedItems).catch(() => [])
+                : Promise.resolve<FeedVideoItem[]>([]);
+
+            const [
+                homeResult,
+                relatedBatches,
+                interestBatches,
+                favoriteItems
+            ] = await Promise.all([
+                homePromise,
+                relatedPromise,
+                interestPromise,
+                favoritesPromise
+            ]);
+
+            if (refreshId !== state.feedRefreshSequence) return;
+
+            const orderedHomeItems = forceRefresh && previousVideoIds.size > 0
+                ? [
+                    ...homeResult.items.filter(
+                        (item) => !previousVideoIds.has(item.videoId)
+                    ),
+                    ...homeResult.items.filter(
+                        (item) => previousVideoIds.has(item.videoId)
+                    )
+                ]
+                : homeResult.items;
+
+            const candidates = [...new Map(
+                [
+                    ...orderedHomeItems,
+                    ...relatedBatches.flat(),
+                    ...interestBatches.flat(),
+                    ...favoriteItems
+                ].map((item) => [item.videoId, item] as const)
+            ).values()];
+
+            const homeDisplayLimit = japaneseMode
+                ? JAPANESE_HOME_ITEMS_LIMIT
+                : HOME_ITEMS_LIMIT;
+            const candidateLimit = homeDisplayLimit
+                + (japaneseMode ? 60 : 50);
+            const items = await buildFinalFilteredFeedItems(
+                filterPassiveDiscoveryLanguage(candidates),
+                candidateLimit
+            );
+
+            if (refreshId !== state.feedRefreshSequence) return;
+
+            let ranked = updateHomePersonalization(items);
+
+            if (forceRefresh && previousVideoIds.size > 0) {
+                const unseen = ranked.filter(
+                    (item) => !previousVideoIds.has(item.videoId)
+                );
+                const repeated = ranked.filter(
+                    (item) => previousVideoIds.has(item.videoId)
+                );
+                ranked = [...unseen, ...repeated];
+            }
+
+            if (forceRefresh && ranked.length > homeDisplayLimit) {
+                const rotationPool = Math.min(
+                    ranked.length,
+                    Math.max(homeDisplayLimit + 8, 24)
+                );
+                const offset = rotationPool > 0
+                    ? (homeRefreshRotation * 11) % rotationPool
+                    : 0;
+                if (offset > 0) {
+                    ranked = [
+                        ...ranked.slice(offset, rotationPool),
+                        ...ranked.slice(0, offset),
+                        ...ranked.slice(rotationPool)
+                    ];
+                }
+            }
+
+            state.feedState.items = ranked.slice(0, homeDisplayLimit);
             state.feedState.isLoading = false;
-            state.feedState.status = "Could not load latest uploads.";
-            state.feedState.warning = "";
+
+            if (state.feedState.items.length > 0) {
+                state.feedState.status = "";
+                state.feedState.warning =
+                    state.appMode === "logged_in"
+                    && Boolean(homeResult.failureReason)
+                        ? "Using your local watch history because YouTube Home could not load."
+                        : "";
+            } else {
+                state.feedState.warning = "";
+                state.feedState.status = history.length > 0
+                    ? "Could not build recommendations from your recent watch history. Try Home again."
+                    : "Watch a few videos or choose a category to start shaping For You.";
+            }
+
             renderFeed();
-            return;
-        }
+        } catch (error) {
+            if (refreshId !== state.feedRefreshSequence) return;
 
-        if (refreshId !== state.feedRefreshSequence) {
-            return;
-        }
-
-        const mergedItems = mergeFeedItems(channelResults);
-        const filteredItems = await buildFinalFilteredFeedItems(
-            filterPassiveDiscoveryLanguage(mergedItems),
-            FEED_ITEMS_LIMIT
-        );
-        if (refreshId !== state.feedRefreshSequence) {
-            return;
-        }
-        const failedWithoutCacheCount = channelResults.filter((result) => result.hadError && result.items.length === 0).length;
-        const parseEmptyCount = channelResults.filter((result) => result.failureReason === "parse_empty").length;
-        const parserRejectedChannelCount = channelResults.filter((result) => {
-            return result.items.length === 0 && countRejectedByParser(result) > 0;
-        }).length;
-
-        if (filteredItems.length || !failedWithoutCacheCount) state.feedState.items = filteredItems;
-        state.feedState.isLoading = false;
-        if (filteredItems.length > 0) {
-            state.feedState.status = "";
-        } else if (parseEmptyCount > 0 || parserRejectedChannelCount > 0) {
-            state.feedState.status = "Could not find playable videos in YouTube response.";
-        } else if (failedWithoutCacheCount > 0) {
-            state.feedState.status = "Could not load latest uploads.";
-        } else {
-            state.feedState.status = "No recent uploads found for your channels.";
-        }
-
-        if (failedWithoutCacheCount > 0) {
-            state.feedState.warning = `Could not load ${failedWithoutCacheCount} channel${failedWithoutCacheCount === 1 ? "" : "s"}.`;
-        } else {
+            state.feedState.isLoading = false;
             state.feedState.warning = "";
+            state.feedState.status =
+                `Could not build For You recommendations: ${error instanceof Error ? error.message : String(error)}`;
+            renderFeed();
         }
-
-        renderFeed();
     };
 
     const queuedRefreshFeed = createRefreshQueue(refreshFeedOnce);
@@ -668,6 +697,7 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
         resolveSearchVideoPresentation,
         getVideoMetadataFromCache,
         buildFinalFilteredFeedItems,
-        fetchLoggedInSubscriptionsFeed
+        fetchLoggedInSubscriptionsFeed,
+        fetchLoggedInSubscriptionChannels
     };
 }
