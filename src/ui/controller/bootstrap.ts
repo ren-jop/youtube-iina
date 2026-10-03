@@ -278,7 +278,7 @@ export function initializeSidebar(): void {
         feedController.renderFeed();
         searchController?.renderSearchResults();
         relatedController.renderRelated();
-        if (reason === "midnight-reset") {
+        if (reason === "midnight-reset" || reason === "consumed") {
             void feedController.refreshFeed(true);
         }
     });

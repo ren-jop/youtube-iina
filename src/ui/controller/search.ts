@@ -1,21 +1,24 @@
-import { getDiscoveryGuardSnapshot } from "../storage/discoveryGuard";
+import { isJapaneseDiscoveryActive } from "../storage/discoveryGuard";
 import { getOptions } from "../storage/libraryData";
-import { isEducationalContent } from "./feedTopics";
 import {
     buildJapaneseSearchQuery,
     isJapaneseTitle,
     isLikelyJapaneseDiscoveryText
 } from "../innertube/japanese";
 import { requestPlayback } from "./playerUi";
+import { MESSAGE_NAMES } from "../../shared/messages";
 import {
     SEARCH_CHANNELS_LIMIT,
     SEARCH_IDLE_STATUS_TEXT,
+    SEARCH_PLAYLISTS_LIMIT,
     SEARCH_TIMEOUT_MS,
     SEARCH_VIDEOS_LIMIT
 } from "../constants";
 import {
     channelsEmptyState,
     channelsList,
+    playlistsEmptyState,
+    playlistsList,
     searchInput,
     videosEmptyState,
     videosList,
@@ -44,6 +47,7 @@ import type {
     FeedVideoItem,
     InnertubeCommand,
     SearchChannelResult,
+    SearchPlaylistResult,
     SearchVideoResult,
     VideoMetadata,
     ViewName
@@ -69,6 +73,7 @@ export interface SearchController {
     setSearchStatus: (text: string) => void;
     renderSearchResults: () => void;
     performSearch: (query: string) => Promise<void>;
+    playPlaylist: (playlist: SearchPlaylistResult) => void;
     playVideo: (video: SearchVideoResult) => void;
     isFavoriteChannel: (channelId: string) => boolean;
     toggleFavorite: (channel: SearchChannelResult) => void;
@@ -225,6 +230,15 @@ export function createSearchController(dependencies: SearchControllerDependencie
         }
     };
 
+    const playPlaylist = (playlist: SearchPlaylistResult): void => {
+        if (!state.iinaApi || typeof state.iinaApi.postMessage !== "function") return;
+        state.iinaApi.postMessage(MESSAGE_NAMES.PlayPlaylist, {
+            playlistId: playlist.playlistId,
+            url: "https://www.youtube.com/playlist?list=" + encodeURIComponent(playlist.playlistId),
+            quality: getOptions().playbackQuality
+        });
+    };
+
     const playVideo = (video: SearchVideoResult): void => {
         if (!state.iinaApi || typeof state.iinaApi.postMessage !== "function") {
             return;
@@ -302,14 +316,17 @@ export function createSearchController(dependencies: SearchControllerDependencie
             isLoggedIn: state.appMode === "logged_in",
             elements: {
                 channelsList,
+                playlistsList,
                 videosList,
                 channelsEmptyState,
+                playlistsEmptyState,
                 videosEmptyState
             },
             onUpdateLoadingIndicators: dependencies.updateActiveViewLoadingIndicators,
             onOpenChannel: openChannel,
             onToggleFavorite: toggleFavorite,
             isFavoriteChannel,
+            onPlayPlaylist: playPlaylist,
             onPlayVideo: playVideo,
             getVideoMetadataFromCache: dependencies.getVideoMetadataFromCache,
             resolveVideoPresentation: dependencies.resolveSearchVideoPresentation
@@ -324,6 +341,7 @@ export function createSearchController(dependencies: SearchControllerDependencie
         if (!normalizedQuery) {
             state.searchState.query = "";
             state.searchState.channels = [];
+            state.searchState.playlists = [];
             state.searchState.videos = [];
             state.searchState.isLoading = false;
             setSearchStatus(SEARCH_IDLE_STATUS_TEXT);
@@ -336,16 +354,31 @@ export function createSearchController(dependencies: SearchControllerDependencie
             return;
         }
 
+        const playlistUrlMatch = normalizedQuery.match(/[?&]list=([A-Za-z0-9_-]{10,128})(?:[&#]|$)/);
+        if (playlistUrlMatch?.[1]) {
+            state.searchState.query = normalizedQuery;
+            state.searchState.channels = [];
+            state.searchState.playlists = [{
+                playlistId: playlistUrlMatch[1],
+                title: "YouTube playlist",
+                channelTitle: "",
+                thumbnailUrl: "",
+                videoCountText: ""
+            }];
+            state.searchState.videos = [];
+            state.searchState.isLoading = false;
+            setSearchStatus("Playlist ready.");
+            renderSearchResults();
+            return;
+        }
+
         state.searchState.query = normalizedQuery;
         state.searchState.isLoading = true;
         setSearchStatus("");
         renderSearchResults();
 
         try {
-            const options = getOptions();
-            const guard = getDiscoveryGuardSnapshot();
-            const strictJapanese = options.japaneseMode;
-            const studyGuard = guard.dailyDistractionConsumed && !strictJapanese;
+            const strictJapanese = isJapaneseDiscoveryActive();
             const requestQuery = strictJapanese
                 ? buildJapaneseSearchQuery(normalizedQuery)
                 : normalizedQuery;
@@ -378,15 +411,16 @@ export function createSearchController(dependencies: SearchControllerDependencie
                     isLikelyJapaneseDiscoveryText(channel.title, channel.title)
                 )
                 : parsed.channels;
+            const candidatePlaylists = strictJapanese
+                ? parsed.playlists.filter((playlist) =>
+                    isLikelyJapaneseDiscoveryText(playlist.title, playlist.channelTitle)
+                )
+                : parsed.playlists;
             const candidateVideos = strictJapanese
                 ? parsed.videos.filter((video) => isJapaneseTitle(video.title))
-                : studyGuard
-                    ? parsed.videos.filter((video) =>
-                        isJapaneseTitle(video.title)
-                        || isEducationalContent(video.title, video.channelTitle)
-                    )
-                    : parsed.videos;
+                : parsed.videos;
             const limitedChannels = candidateChannels.slice(0, SEARCH_CHANNELS_LIMIT);
+            const limitedPlaylists = candidatePlaylists.slice(0, SEARCH_PLAYLISTS_LIMIT);
             const channelsWithSubscriptionState = limitedChannels;
             const limitedVideos = candidateVideos.slice(0, SEARCH_VIDEOS_LIMIT);
             const finalizedVideos = await buildFinalSearchVideos(limitedVideos);
@@ -396,17 +430,15 @@ export function createSearchController(dependencies: SearchControllerDependencie
             }
 
             state.searchState.channels = channelsWithSubscriptionState;
+            state.searchState.playlists = limitedPlaylists;
             state.searchState.videos = finalizedVideos;
             setSearchStatus(
                 strictJapanese
                 && finalizedVideos.length === 0
                 && limitedChannels.length === 0
+                && limitedPlaylists.length === 0
                     ? "No Japanese results found. Try a broader search."
-                    : studyGuard
-                    && finalizedVideos.length === 0
-                    && limitedChannels.length === 0
-                        ? "No Japanese or educational results found. You can still open a channel from search."
-                        : ""
+                    : ""
             );
             // Subscription state can take several requests. Show videos immediately.
             if (state.appMode === "logged_in") void resolveSearchChannelsSubscriptionState(limitedChannels).then(channels => {
@@ -465,6 +497,7 @@ export function createSearchController(dependencies: SearchControllerDependencie
         setSearchStatus,
         renderSearchResults,
         performSearch,
+        playPlaylist,
         playVideo,
         isFavoriteChannel,
         toggleFavorite,

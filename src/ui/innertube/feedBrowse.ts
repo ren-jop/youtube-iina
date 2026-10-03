@@ -1,5 +1,4 @@
 import { parseSearchResponse } from "../parsers/search";
-import { isEducationalContent } from "../controller/feedTopics";
 import { isJapaneseTitle } from "./japanese";
 import { getOptions } from "../storage/libraryData";
 import { getDiscoveryGuardSnapshot, isJapaneseDiscoveryActive } from "../storage/discoveryGuard";
@@ -354,9 +353,8 @@ export async function fetchLoggedInHomeFeed(
     // instead of simply repainting the same first page.
     const options = getOptions();
     const guard = getDiscoveryGuardSnapshot();
-    const strictJapanese = options.japaneseMode;
-    const studyGuard = guard.dailyDistractionConsumed && !strictJapanese;
-    const constrainedDiscovery = strictJapanese || studyGuard;
+    const strictJapanese = options.japaneseMode || guard.dailyDistractionConsumed;
+    const constrainedDiscovery = strictJapanese;
     const displayLimit = constrainedDiscovery
         ? JAPANESE_HOME_ITEMS_LIMIT
         : HOME_ITEMS_LIMIT;
@@ -377,11 +375,7 @@ export async function fetchLoggedInHomeFeed(
             : LOGGED_IN_BROWSE_MAX_PAGES,
         strictJapanese
             ? (item) => isJapaneseTitle(item.title)
-            : studyGuard
-                ? (item) =>
-                    isJapaneseTitle(item.title)
-                    || isEducationalContent(item.title, item.channelTitle)
-                : undefined
+            : undefined
     );
 
     if (!constrainedDiscovery) {
@@ -396,10 +390,7 @@ export async function fetchLoggedInHomeFeed(
     if (items.length < minimumUsefulHome) {
         const fallback = await fetchJapaneseHomeFallback(minimumUsefulHome - items.length);
         items = dedupeFeedItems([...items, ...fallback])
-            .filter((item) =>
-                isJapaneseTitle(item.title)
-                || (studyGuard && isEducationalContent(item.title, item.channelTitle))
-            )
+            .filter((item) => isJapaneseTitle(item.title))
             .slice(0, target);
     }
 
@@ -590,14 +581,9 @@ async function fetchRelatedFeedUncached(
 const relatedCache = new Map<string, { at: number; result: FeedFetchResult }>();
 const relatedPending = new Map<string, Promise<FeedFetchResult>>();
 export async function fetchRelatedFeed(videoId: string, title = ""): Promise<FeedFetchResult> {
-    // Related should continue the language of the video the user deliberately
-    // opened. JP discovery therefore keeps Japanese follow-ups for Japanese
-    // videos, but an explicitly searched English tutorial can keep useful
-    // English follow-ups.
-    const dailyStudyGuard = getDiscoveryGuardSnapshot().dailyDistractionConsumed;
-    const japaneseOnly =
-        (dailyStudyGuard && !isEducationalContent(title))
-        || (getOptions().japaneseMode && isJapaneseTitle(title));
+    // Once Study / JP is active (including after today's one distraction),
+    // Related remains Japanese-only until the guard resets.
+    const japaneseOnly = isJapaneseDiscoveryActive();
     const key = `${videoId}:${getOptions().relatedMode}:${japaneseOnly}:${title}`;
     const cached = relatedCache.get(key);
     if (cached && Date.now() - cached.at < 180000) return cached.result;

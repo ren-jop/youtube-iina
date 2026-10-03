@@ -1,10 +1,9 @@
 import { loadChannelVideos } from "../innertube/channels";
 import { isJapaneseTitle } from "../innertube/japanese";
 import { getOptions } from "../storage/libraryData";
-import { getDiscoveryGuardSnapshot } from "../storage/discoveryGuard";
+import { getDiscoveryGuardSnapshot, isJapaneseDiscoveryActive } from "../storage/discoveryGuard";
 import { filterReason } from "../storage/feedFilters";
 import { selectedVideo, selectedVideoTitle } from "./playerUi";
-import { isEducationalContent } from "./feedTopics";
 import type { PlaybackLifecycleEventPayload } from "../../shared/messages";
 import {
     RELATED_EMPTY_TEXT,
@@ -47,14 +46,13 @@ export interface RelatedController {
 
 export function createRelatedController(dependencies: RelatedControllerDependencies): RelatedController {
     const renderRelated = (): void => {
-        const dailyStudyGuard = getDiscoveryGuardSnapshot().dailyDistractionConsumed;
+        const japaneseDiscovery = isJapaneseDiscoveryActive();
         renderRelatedView({
-            relatedState: dailyStudyGuard
+            relatedState: japaneseDiscovery
                 ? {
                     ...state.relatedState,
                     items: state.relatedState.items.filter((item) =>
                         isJapaneseTitle(item.title)
-                        || isEducationalContent(item.title, item.channelTitle)
                     )
                 }
                 : state.relatedState,
@@ -88,12 +86,7 @@ export function createRelatedController(dependencies: RelatedControllerDependenc
         let channelAdded = false, relatedAdded = false;
         let channelItems: FeedVideoItem[] = [];
         const sourceTitle = source?.title || selectedVideoTitle(videoId);
-        const japaneseRelated =
-            (
-                getDiscoveryGuardSnapshot().dailyDistractionConsumed
-                && !isEducationalContent(sourceTitle, source?.channelTitle || "")
-            )
-            || (getOptions().japaneseMode && isJapaneseTitle(sourceTitle));
+        const japaneseRelated = isJapaneseDiscoveryActive();
         const accept = async (incoming: FeedVideoItem[], fromChannel: boolean, limit = RELATED_ITEMS_LIMIT): Promise<void> => {
             const filtered = incoming.filter(item =>
                 item.videoId !== videoId

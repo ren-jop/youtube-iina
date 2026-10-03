@@ -1,3 +1,13 @@
+## 1.2.25 — Playlists + reliable one-distraction Japanese handoff
+
+- Added **playlist results** to YouTube search, including title, creator/count metadata and thumbnails when YouTube supplies them.
+- Playlist cards have **Play all** and open the real YouTube playlist through IINA/yt-dlp so IINA can expand and advance the playlist natively.
+- Pasting a YouTube URL containing a list= playlist ID into Search now exposes a playable playlist directly.
+- Fixed **Distract · 1/day** so choosing the first Home video immediately triggers a fresh Japanese Home rebuild instead of merely re-filtering stale cards.
+- After the daily distraction is consumed, **Home, Search and Related are strictly Japanese-only until local midnight**; the previous English educational fallback is removed.
+- The daily handoff now also switches YouTube's discovery region bias to Japan. Subscriptions and deliberate channel browsing remain unrestricted.
+- Added regression coverage for playlist parsing, native playlist playback, and the immediate post-distraction JP discovery context.
+
 ## 1.2.24 — Real history-driven For You + restored Subscriptions
 
 - **For You is now a real recommendation feed in both signed-in and anonymous modes.** It no longer falls back to an empty saved-channel feed when YouTube authentication is unavailable.

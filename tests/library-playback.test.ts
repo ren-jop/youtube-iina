@@ -6,7 +6,7 @@ import { filterByTopic } from '../src/ui/parsers/related';
 import { readLockupMetadata } from '../src/ui/parsers/lockupMetadata';
 import { diagnosticReport } from '../src/ui/bridge/diagnostics';
 import info from '../xyz.brbc.youtube.iinaplugin/Info.json';
-import { handlePlayItem, playbackFormatForQuality } from '../src/plugin/playback';
+import { handlePlayItem, handlePlayPlaylist, playbackFormatForQuality } from '../src/plugin/playback';
 import { installDataTransfer } from '../src/plugin/dataTransfer';
 import {
     getDiscoveryGuardSnapshot,
@@ -118,6 +118,24 @@ test('native transfer safely encodes template characters and cancel does not wri
     globalThis.iina.utils.chooseFile=()=>''; handler({action:'export',text:'data'});
     expect(JSON.parse(decodeURIComponent(reply)).cancelled).toBe(true); expect(writes).toBe(0);
 });
+test('playlist play-all opens the real playlist URL without single-video insertion',()=>{
+    let opened='';
+    let added=0;
+    globalThis.iina={
+        console:{warn(){}},
+        core:{open:(url:string)=>{opened=url;}},
+        playlist:{count:()=>1,add:()=>{added++;return true;},play(){}},
+        mpv:{set(){}}
+    } as any;
+    expect(handlePlayPlaylist({
+        playlistId:'PL1234567890abcd',
+        url:'',
+        quality:'1080'
+    })).toBe(true);
+    expect(opened).toBe('https://www.youtube.com/playlist?list=PL1234567890abcd');
+    expect(added).toBe(0);
+});
+
 test('native playback never clears or starts a rejected playlist insertion',()=>{
     globalThis.iina={playlist:{count:()=>1,add:()=>false,play(){throw new Error('Should not play');}},mpv:{command(){throw new Error('Should not clear');}}} as any;
     expect(handlePlayItem({videoId:'abcdefghijk',url:''})).toBe(false);

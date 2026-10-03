@@ -2,6 +2,7 @@ import type { HttpResponseWirePayload } from "./httpTransport";
 
 export const MESSAGE_NAMES = {
     PlayItem: "playItem",
+    PlayPlaylist: "playPlaylist",
     OpenExternalUrl: "openExternalUrl",
     HttpRequest: "httpRequest",
     HttpResponse: "httpResponse",
@@ -19,6 +20,12 @@ export type MessageName = typeof MESSAGE_NAMES[keyof typeof MESSAGE_NAMES];
 export interface PlayItemPayload {
     quality?: "auto" | "1080" | "720";
     videoId: string;
+    url: string;
+}
+
+export interface PlayPlaylistPayload {
+    quality?: "auto" | "1080" | "720";
+    playlistId: string;
     url: string;
 }
 
@@ -105,6 +112,7 @@ export interface UiToPluginMessagePayloads {
     togglePlayback: Record<string, never>;
     libraryTransfer: { action: string; text?: string; format?: string };
     playItem: PlayItemPayload;
+    playPlaylist: PlayPlaylistPayload;
     openExternalUrl: OpenExternalUrlPayload;
     httpRequest: HttpRequestPayload;
     reportWatchStatusRequest: ReportWatchStatusRequestPayload;

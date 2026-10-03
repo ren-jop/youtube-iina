@@ -1,4 +1,4 @@
-import { getOptions } from "../storage/libraryData";
+import { isJapaneseDiscoveryActive } from "../storage/discoveryGuard";
 import type { InnertubeConfig, JsonObject } from "../types";
 
 import { USER_AGENT } from "../constants";
@@ -34,6 +34,6 @@ export function buildWebClientContext(config: InnertubeConfig): JsonObject {
         // hl stays English so YouTube does not localize an English original
         // title into Japanese and accidentally make it pass JP-only filtering.
         hl: "en",
-        gl: getOptions().japaneseMode ? "JP" : "US"
+        gl: isJapaneseDiscoveryActive() ? "JP" : "US"
     };
 }

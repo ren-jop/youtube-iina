@@ -1,8 +1,8 @@
 import { readVideoChannelId } from "./channelIdentity";
 import { parseFeedItemsFromBrowseResponse } from "./feed";
-import type { JsonObject, SearchChannelResult, SearchVideoResult } from "../types";
+import type { JsonObject, SearchChannelResult, SearchPlaylistResult, SearchVideoResult } from "../types";
 import { isValidYouTubeVideoId } from "../utils/ids";
-import { asObject, asString } from "../utils/json";
+import { asArray, asObject, asString } from "../utils/json";
 import { extractText, extractThumbnailUrl } from "../utils/text";
 import {
     buildFallbackThumbnailUrl,
@@ -31,6 +31,45 @@ function parseChannelRenderer(renderer: JsonObject): SearchChannelResult | null 
         title,
         thumbnailUrl,
         channelHandle
+    };
+}
+
+function parsePlaylistRenderer(renderer: JsonObject): SearchPlaylistResult | null {
+    const endpoint = asObject(renderer.navigationEndpoint);
+    const watchEndpoint = asObject(endpoint?.watchEndpoint);
+    const browseEndpoint = asObject(endpoint?.browseEndpoint);
+    const browseId = asString(browseEndpoint?.browseId).trim();
+    const playlistId = (
+        asString(renderer.playlistId)
+        || asString(watchEndpoint?.playlistId)
+        || (browseId.startsWith("VL") ? browseId.slice(2) : "")
+    ).trim();
+    const title = extractText(renderer.title).trim();
+    if (!playlistId || !title || !/^[A-Za-z0-9_-]{10,128}$/.test(playlistId)) return null;
+
+    return {
+        playlistId,
+        title,
+        channelTitle: (
+            extractText(renderer.longBylineText)
+            || extractText(renderer.shortBylineText)
+            || extractText(renderer.ownerText)
+            || extractText(renderer.subtitle)
+        ).trim(),
+        thumbnailUrl: (
+            asArray(renderer.thumbnails)
+                .map((thumbnail) => extractThumbnailUrl(thumbnail))
+                .find(Boolean)
+            || extractThumbnailUrl(renderer.thumbnail)
+            || extractThumbnailUrl(
+                asObject(asObject(renderer.thumbnailRenderer)?.playlistVideoThumbnailRenderer)?.thumbnail
+            )
+        ),
+        videoCountText: (
+            extractText(renderer.videoCountText)
+            || extractText(renderer.videoCountShortText)
+            || extractText(renderer.thumbnailText)
+        ).trim()
     };
 }
 
@@ -72,6 +111,7 @@ function parseVideoRenderer(renderer: JsonObject): SearchVideoResult | null {
 function collectSearchRenderers(
     node: unknown,
     channels: SearchChannelResult[],
+    playlists: SearchPlaylistResult[],
     videos: SearchVideoResult[]
 ): void {
     const stack: unknown[] = [node];
@@ -101,6 +141,17 @@ function collectSearchRenderers(
             if (channel) channels.push(channel);
         }
 
+        for (const key of [
+            "playlistRenderer",
+            "gridPlaylistRenderer",
+            "compactPlaylistRenderer"
+        ]) {
+            const playlistRenderer = asObject(objectNode[key]);
+            if (!playlistRenderer) continue;
+            const playlist = parsePlaylistRenderer(playlistRenderer);
+            if (playlist) playlists.push(playlist);
+        }
+
         const videoRenderer = asObject(objectNode.videoRenderer);
         if (videoRenderer) {
             const video = parseVideoRenderer(videoRenderer);
@@ -117,11 +168,12 @@ function collectSearchRenderers(
     }
 }
 
-export function parseSearchResponse(payload: unknown): { channels: SearchChannelResult[]; videos: SearchVideoResult[] } {
+export function parseSearchResponse(payload: unknown): { channels: SearchChannelResult[]; playlists: SearchPlaylistResult[]; videos: SearchVideoResult[] } {
     const channels: SearchChannelResult[] = [];
+    const playlists: SearchPlaylistResult[] = [];
     const videos: SearchVideoResult[] = [];
 
-    collectSearchRenderers(payload, channels, videos);
+    collectSearchRenderers(payload, channels, playlists, videos);
 
     const uniqueChannels = new Map<string, SearchChannelResult>();
     channels.forEach((channel) => {
@@ -134,6 +186,13 @@ export function parseSearchResponse(payload: unknown): { channels: SearchChannel
         videos.push({ channelId: item.channelId, videoId: item.videoId, title: item.title, channelTitle: item.channelTitle, thumbnailUrl: item.thumbnailUrl, publishedText: item.published, viewCountText: item.viewCountText, durationLabel: item.durationLabel });
     }
 
+    const uniquePlaylists = new Map<string, SearchPlaylistResult>();
+    playlists.forEach((playlist) => {
+        if (!uniquePlaylists.has(playlist.playlistId)) {
+            uniquePlaylists.set(playlist.playlistId, playlist);
+        }
+    });
+
     const uniqueVideos = new Map<string, SearchVideoResult>();
     videos.forEach((video) => {
         if (!uniqueVideos.has(video.videoId)) {
@@ -143,6 +202,7 @@ export function parseSearchResponse(payload: unknown): { channels: SearchChannel
 
     return {
         channels: [...uniqueChannels.values()],
+        playlists: [...uniquePlaylists.values()],
         videos: [...uniqueVideos.values()]
     };
 }

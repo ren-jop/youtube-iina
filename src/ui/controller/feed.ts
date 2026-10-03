@@ -97,15 +97,8 @@ export function createFeedController(dependencies: FeedControllerDependencies): 
     };
 
     const filterPassiveDiscoveryLanguage = (items: FeedVideoItem[]): FeedVideoItem[] => {
-        const options = getOptions();
-        const guard = getDiscoveryGuardSnapshot();
-        if (!options.japaneseMode && !guard.dailyDistractionConsumed) return items;
-
-        return items.filter((item) =>
-            isJapaneseTitle(item.title)
-            || (!options.japaneseMode && isEducationalContent(item.title, item.channelTitle))
-            || (guard.dailyDistractionVideoId && item.videoId === guard.dailyDistractionVideoId)
-        );
+        if (!isJapaneseDiscoveryActive()) return items;
+        return items.filter((item) => isJapaneseTitle(item.title));
     };
 
     const getVideoMetadataFromCache = (videoId: string): VideoMetadata | null => {

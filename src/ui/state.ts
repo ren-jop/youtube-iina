@@ -64,6 +64,7 @@ export const state: UiState = {
         query: "",
         isLoading: false,
         channels: [],
+        playlists: [],
         videos: [],
         status: SEARCH_IDLE_STATUS_TEXT
     },

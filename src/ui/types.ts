@@ -47,6 +47,14 @@ export interface SearchVideoResult {
     publishedText: string;
 }
 
+export interface SearchPlaylistResult {
+    playlistId: string;
+    title: string;
+    channelTitle: string;
+    thumbnailUrl: string;
+    videoCountText: string;
+}
+
 export interface InnertubeConfig {
     apiKey: string;
     clientVersion: string;
@@ -94,6 +102,7 @@ export interface SearchState {
     query: string;
     isLoading: boolean;
     channels: SearchChannelResult[];
+    playlists: SearchPlaylistResult[];
     videos: SearchVideoResult[];
     status: string;
 }

@@ -3,6 +3,7 @@ import { runInNewContext } from 'node:vm';
 import { decodeHttpResponse } from '../src/shared/httpTransport';
 import { normalizeHttpResponse } from '../src/plugin/httpResponse';
 import { parseFeedItemsFromBrowseResponse } from '../src/ui/parsers/feed';
+import { parseSearchResponse } from '../src/ui/parsers/search';
 import { parseChannelSubscriptionDetails } from '../src/ui/parsers/subscription';
 import { parseInnertubeConfig } from '../src/ui/innertube/config';
 import { buildFinalFilteredFeedItems } from '../src/ui/innertube/metadata';
@@ -195,6 +196,38 @@ describe('Japanese discovery', () => {
         )).toBe(false);
         expect(isJapaneseTitle('How to focus better')).toBe(false);
         expect(isJapaneseTitle('Rustで安全なCLIを作る')).toBe(true);
+    });
+});
+
+describe('playlist search parsing', () => {
+    test('extracts classic playlist results including nested thumbnails', () => {
+        const playlistId = 'PL1234567890abcd';
+        const payload = {
+            contents: [{
+                playlistRenderer: {
+                    playlistId,
+                    title: { simpleText: '日本語の勉強プレイリスト' },
+                    longBylineText: { runs: [{ text: 'Study Channel' }] },
+                    videoCountText: { simpleText: '12 videos' },
+                    thumbnails: [{
+                        thumbnails: [{
+                            url: 'https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg'
+                        }]
+                    }],
+                    navigationEndpoint: {
+                        watchEndpoint: { playlistId }
+                    }
+                }
+            }]
+        };
+        const parsed = parseSearchResponse(payload);
+        expect(parsed.playlists).toEqual([{
+            playlistId,
+            title: '日本語の勉強プレイリスト',
+            channelTitle: 'Study Channel',
+            thumbnailUrl: 'https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg',
+            videoCountText: '12 videos'
+        }]);
     });
 });
 

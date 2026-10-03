@@ -8,6 +8,7 @@ import {
     DATA_KEY,
     defaultOptions
 } from "../src/ui/storage/libraryData";
+import { buildWebClientContext } from "../src/ui/innertube/request";
 
 let originalStorage: Storage | undefined;
 let memory: Map<string, string>;
@@ -52,6 +53,13 @@ describe("daily distraction allowance", () => {
         expect(getDiscoveryGuardSnapshot(afterMidnight).dailyDistractionConsumed).toBe(false);
         expect(isJapaneseDiscoveryActive(afterMidnight)).toBe(false);
         expect(consumeDailyDistraction("zyxwvutsrqp", afterMidnight)).toBe(true);
+    });
+
+    test("consuming the distraction immediately biases Innertube discovery to Japan", () => {
+        const now = Date.now();
+        expect(buildWebClientContext({ apiKey: "key", clientVersion: "1" }).gl).toBe("US");
+        expect(consumeDailyDistraction("abcdefghijk", now)).toBe(true);
+        expect(buildWebClientContext({ apiKey: "key", clientVersion: "1" }).gl).toBe("JP");
     });
 
     test("Study / JP mode does not spend the distraction allowance", () => {

@@ -3,6 +3,7 @@ import type {
     HttpRequestPayload,
     OpenExternalUrlPayload,
     PlayItemPayload,
+    PlayPlaylistPayload,
     ReportWatchStatusRequestPayload,
     RequestSettingsSyncPayload
 } from "../shared/messages";
@@ -11,7 +12,7 @@ import { encodeHttpResponse, requestLabel } from "../shared/httpTransport";
 import { normalizeHttpResponse } from "./httpResponse";
 import { MESSAGE_NAMES } from "../shared/messages";
 import { installPlaybackHookScaffolding } from "./hooks";
-import { handlePlayItem } from "./playback";
+import { handlePlayItem, handlePlayPlaylist } from "./playback";
 import { createSponsorBlockController } from "./sponsorblock";
 
 const { console, event, sidebar, global, http, utils, core, overlay, preferences } = iina as any;
@@ -260,6 +261,25 @@ event.on("iina.window-loaded", () => {
         }, 180);
 
         // Leave the sidebar and its current list visible during playback.
+    });
+
+    sidebar.onMessage(MESSAGE_NAMES.PlayPlaylist, (data: PlayPlaylistPayload) => {
+        console.log("YouTube: Received playPlaylist");
+        if (windowClosed || !data) return;
+        if (!/^[A-Za-z0-9_-]{10,128}$/.test(data.playlistId || "")) return;
+
+        if (playTimer !== null) clearTimeout(playTimer);
+        playTimer = null;
+        if (playlistCleanupTimer !== null) clearTimeout(playlistCleanupTimer);
+        playlistCleanupTimer = null;
+        resetPlaybackSwitch();
+
+        try {
+            sponsorBlockController?.stop();
+            if (!handlePlayPlaylist(data)) throw new Error("Player rejected playlist");
+        } catch {
+            sidebar.postMessage("playbackSwitchStatus", { stage: "failed" });
+        }
     });
 
     sidebar.onMessage(MESSAGE_NAMES.OpenExternalUrl, (data: OpenExternalUrlPayload) => {

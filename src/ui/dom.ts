@@ -35,6 +35,8 @@ export const searchLoadingIndicator = document.querySelector<HTMLElement>("[data
 export const channelsList = document.querySelector<HTMLUListElement>("[data-channels-list]")!;
 export const videosList = document.querySelector<HTMLUListElement>("[data-videos-list]")!;
 export const channelsEmptyState = document.querySelector<HTMLElement>("[data-channels-empty]")!;
+export const playlistsList = document.querySelector<HTMLUListElement>("[data-playlists-list]")!;
+export const playlistsEmptyState = document.querySelector<HTMLElement>("[data-playlists-empty]")!;
 export const videosEmptyState = document.querySelector<HTMLElement>("[data-videos-empty]")!;
 
 export const favoritesList = document.querySelector<HTMLUListElement>("[data-favorites-list]")!;

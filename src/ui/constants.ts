@@ -38,8 +38,9 @@ export const HOME_EMPTY_TEXT = "No home recommendations available.";
 export const SUBSCRIPTIONS_EMPTY_TEXT = "No subscription videos available.";
 export const RELATED_EMPTY_TEXT = "No related videos found.";
 export const RELATED_IDLE_TEXT = "Start playing a video to see related videos.";
-export const SEARCH_IDLE_STATUS_TEXT = "Search YouTube for channels and videos.";
+export const SEARCH_IDLE_STATUS_TEXT = "Search YouTube for channels, playlists and videos.";
 export const SEARCH_CHANNELS_LIMIT = 3;
+export const SEARCH_PLAYLISTS_LIMIT = 12;
 export const SEARCH_VIDEOS_LIMIT = 20;
 
 export const AD_TEXT_MARKER_PATTERN = /\b(ad(?:vertisement)?|promoted|sponsored)\b/i;
